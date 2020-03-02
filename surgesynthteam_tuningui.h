@@ -29,12 +29,21 @@ public:
         for( int i=0; i<128; ++i )
             notesOn[i] = false;
     }
-    ~surgesynthteam_TuningTableListBoxModel() { }
+    ~surgesynthteam_TuningTableListBoxModel() {
+        table = nullptr;
+    }
 
     void setTableListBox( juce::TableListBox * t ) {
         table = t;
     }
 
+    void setupDefaultHeaders( juce::TableListBox *table ) {
+        table->getHeader().addColumn( "Note", 0, 40 );
+        table->getHeader().addColumn( "Name", 1, 40 );
+        table->getHeader().addColumn( "Freq (hz)", 2, 90 );
+        table->getHeader().addColumn( "log2(f/8.17)", 3, 90 );
+    }
+    
     virtual int getNumRows() override { return 128; }
     virtual void paintRowBackground( juce::Graphics &g, int rowNumber, int width, int height, bool rowIsSelected ) override {
         if( ! table ) return;
