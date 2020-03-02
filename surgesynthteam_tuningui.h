@@ -20,6 +20,7 @@
 
 #include "Tunings.h"
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <sstream>
 
 class surgesynthteam_TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
@@ -28,6 +29,8 @@ public:
     surgesynthteam_TuningTableListBoxModel() {
         for( int i=0; i<128; ++i )
             notesOn[i] = false;
+        
+        rmbMenu = std::make_unique<juce::PopupMenu>();
     }
     ~surgesynthteam_TuningTableListBoxModel() {
         table = nullptr;
@@ -168,7 +171,37 @@ public:
         if( noblack )
             g.fillRect (0, height - 1, width, 1 );
     }
-    
+
+    virtual void cellClicked (int rowNumber, int columnId, const juce::MouseEvent & e) override {
+        if( e.mods.isRightButtonDown() )
+        {
+            rmbMenu->clear();
+            rmbMenu->addItem(1, "Export to CSV" );
+            auto result = rmbMenu->show();
+            if( result == 1 )
+                exportToCSV();
+        }
+    }
+
+    virtual void exportToCSV() {
+        juce::FileChooser fc( "Export CSV to..." );
+        if( fc.browseForFileToSave(true) )
+        {
+            auto f = fc.getResult();
+            std::ostringstream csvStream;
+            csvStream << "Midi Note, Frequency, Log(Freq/8.17)\n";
+            for( int i=0; i<128; ++i )
+                csvStream << i << ", " << tuning.frequencyForMidiNote( i ) << ", " << tuning.logScaledFrequencyForMidiNote( i ) << "\n";
+            if( ! f.replaceWithText( csvStream.str() ) )
+            {
+                juce::AlertWindow::showMessageBoxAsync( juce::AlertWindow::AlertIconType::WarningIcon,
+                                                        "Error exporting file",
+                                                        "An unknown error occured streaming CSV data to file",
+                                                        "OK" );
+
+            }
+        }
+    }
        
 
     virtual void tuningUpdated( const Tunings::Tuning &newTuning )  {
@@ -191,6 +224,7 @@ public:
 private:
     Tunings::Tuning tuning;
     std::array<std::atomic<bool>, 128> notesOn;
+    std::unique_ptr<juce::PopupMenu> rmbMenu;
     juce::TableListBox *table;
 
 };
