@@ -21,6 +21,7 @@
 #include "Tunings.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <sstream>
+#include <set>
 
 class surgesynthteam_TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
@@ -227,4 +228,50 @@ private:
     std::unique_ptr<juce::PopupMenu> rmbMenu;
     juce::TableListBox *table;
 
+};
+
+
+class surgesynthteam_ScaleEditor : public juce::Component
+{
+public:
+
+    class ToneEditor : public juce::Component {
+    public:
+        ToneEditor();
+        
+        std::unique_ptr<juce::TextEditor> displayValue;
+        std::unique_ptr<juce::Label> cents;
+        
+    };
+
+    surgesynthteam_ScaleEditor();
+    ~surgesynthteam_ScaleEditor() override;
+
+    class scaleEditedListener {
+    public:
+        virtual ~scaleEditedListener() { }
+        virtual void scaleEdited( juce::String newScale ) = 0;
+    };
+    void addScaleEditedListener( scaleEditedListener *sel ) { listeners.insert(sel); }
+    void removeScaleEditedListener( scaleEditedListener *sel ) { listeners.erase(sel); }
+
+    void setScaleTests( juce::String &s ) {
+        scaleText = s;
+        scale = Tunings::parseSCLData(s.toStdString());
+    }
+
+    void buildUIFromScale();
+    
+    virtual void paint (juce::Graphics& g) override {
+        // (Our component is opaque, so we must completely fill the background with a solid colour)
+        g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
+    }
+    
+private:
+    std::set<scaleEditedListener *> listeners;
+    juce::String scaleText;
+    Tunings::Scale scale;
+    std::vector<std::unique_ptr<ToneEditor>> toneEditors;
+    std::unique_ptr<juce::Component> notesSection;
+    std::unique_ptr<juce::Viewport> notesViewport;
 };
