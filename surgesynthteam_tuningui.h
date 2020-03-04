@@ -185,14 +185,16 @@ public:
     }
 
     virtual void exportToCSV() {
-        juce::FileChooser fc( "Export CSV to..." );
+        juce::FileChooser fc( "Export CSV to...", juce::File(), "*.csv" );
         if( fc.browseForFileToSave(true) )
         {
             auto f = fc.getResult();
             std::ostringstream csvStream;
             csvStream << "Midi Note, Frequency, Log(Freq/8.17)\n";
             for( int i=0; i<128; ++i )
-                csvStream << i << ", " << tuning.frequencyForMidiNote( i ) << ", " << tuning.logScaledFrequencyForMidiNote( i ) << "\n";
+                csvStream << i << ", "
+                          << std::fixed << std::setprecision( 4 ) << tuning.frequencyForMidiNote( i ) << ", "
+                          << std::fixed << std::setprecision(6) << tuning.logScaledFrequencyForMidiNote( i ) << "\n";
             if( ! f.replaceWithText( csvStream.str() ) )
             {
                 juce::AlertWindow::showMessageBoxAsync( juce::AlertWindow::AlertIconType::WarningIcon,
@@ -238,13 +240,21 @@ public:
     class ToneEditor : public juce::Component {
     public:
         ToneEditor();
-        
+
+        std::unique_ptr<juce::Label> index;
         std::unique_ptr<juce::TextEditor> displayValue;
         std::unique_ptr<juce::Label> cents;
-        
     };
 
-    surgesynthteam_ScaleEditor();
+    class RadialScaleGraph : public juce::Component {
+    public:
+        RadialScaleGraph(Tunings::Scale &s) : scale( s ) { }
+
+        virtual void paint( juce::Graphics &g );
+        Tunings::Scale scale;
+    };
+    
+    surgesynthteam_ScaleEditor(Tunings::Scale &s);
     ~surgesynthteam_ScaleEditor() override;
 
     class scaleEditedListener {
@@ -274,4 +284,7 @@ private:
     std::vector<std::unique_ptr<ToneEditor>> toneEditors;
     std::unique_ptr<juce::Component> notesSection;
     std::unique_ptr<juce::Viewport> notesViewport;
+    std::unique_ptr<RadialScaleGraph> radialScaleGraph;
+    
+    std::unique_ptr<juce::GroupComponent> countDescGroup, notesGroup, generatorGroup, analyticsGroup;
 };
