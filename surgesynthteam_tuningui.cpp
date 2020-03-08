@@ -2,25 +2,92 @@
 
 using namespace juce;
 
+class InfiniteKnob : public Component {
+public:
+    InfiniteKnob() : Component(), angle(0) { }
 
-surgesynthteam_ScaleEditor::ToneEditor::ToneEditor()
+    virtual void mouseDown (const MouseEvent &event) override {
+        lastDrag = 0;
+        isDragging= true;
+        repaint();
+    }
+    virtual void mouseDrag (const MouseEvent &event) override {
+        int d = - ( event.getDistanceFromDragStartX() + event.getDistanceFromDragStartY() );
+        int diff = d - lastDrag;
+        lastDrag = d;
+        if( diff != 0 )
+        {
+            float mul = 1.0;
+            if( event.mods.isShiftDown() )
+            {
+                mul = 0.05;
+            }
+            angle += diff * mul;
+            onDragDelta(diff * mul);
+            repaint();
+        }
+    }
+    virtual void mouseUp (const MouseEvent &event) override {
+        isDragging= false;
+        repaint();
+    }
+    virtual void paint( Graphics &g ) override {
+        g.saveState();
+        g.addTransform( AffineTransform::translation( 10, 10 ) );
+        g.addTransform( AffineTransform::rotation( angle / 50.0 * 2.0 * MathConstants<double>::pi ) );
+        g.setColour( getLookAndFeel().findColour( juce::Slider::rotarySliderFillColourId ) );
+        g.fillEllipse( -7, -7, 14, 14 );
+        g.setColour( getLookAndFeel().findColour( juce::GroupComponent::outlineColourId ) );
+        g.drawEllipse( -7, -7, 14, 14, 2 );
+        g.setColour( getLookAndFeel().findColour( juce::Slider::thumbColourId ) );
+        g.drawLine( 0, -9, 0, 9, 3 );
+        g.restoreState();
+    }
+
+    int lastDrag = 0;
+    bool isDragging = false;
+    float angle;
+    std::function<void(float)> onDragDelta = [](float f){};
+};
+
+surgesynthteam_ScaleEditor::ToneEditor::ToneEditor(bool editable)
 {
     int xpos = 2;
-    index.reset( new Label( "idx" ) );
-    addAndMakeVisible( index.get() );
-    index->setBounds( xpos, 2, 40, 20 );
+    displayIndex.reset( new Label( "idx" ) );
+    addAndMakeVisible( displayIndex.get() );
+    displayIndex->setBounds( xpos, 2, 40, 20 );
     xpos += 44;
     
     displayValue.reset( new TextEditor( "display value" ) );
     addAndMakeVisible( displayValue.get() );
     displayValue->setBounds( xpos, 2, 100, 20 );
+    displayValue->addListener( this );
+    displayValue->setReadOnly( ! editable );
     xpos += 104;
-    
-    cents.reset( new Label( "cents" ) );
-    addAndMakeVisible( cents.get() );
-    cents->setBounds( xpos, 2, 80, 20 );
-    xpos += 84;
-    
+
+    if( editable )
+    {
+        auto ck = new InfiniteKnob();
+        ck->onDragDelta = [this](float f) {
+                              auto nv = this->cents + f;
+                              displayValue->setText( String( nv, 5 ) );
+                          };
+        addAndMakeVisible(ck);
+        coarseKnob.reset( ck );
+        coarseKnob->setBounds( xpos, 2, 20, 20 );
+        xpos += 24;
+        
+        auto fk = new InfiniteKnob();
+        addAndMakeVisible(fk);
+        fk->onDragDelta = [this](float f) {
+                              auto nv = this->cents + f * 0.05 * 0.1;
+                              displayValue->setText( String( nv, 5 ) );
+                          };
+
+        fineKnob.reset( fk );
+        fineKnob->setBounds( xpos, 2, 20, 20 );
+        xpos += 24;
+    }
     setSize( 300, 24 );
 }
 
@@ -41,7 +108,7 @@ void surgesynthteam_ScaleEditor::buildUIFromScale()
 {
     if( notesSection == nullptr )
     {
-        // It's my first time through
+        // It's my first time through<
         countDescGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Count and Description" ) ) );
         addAndMakeVisible( countDescGroup.get() );
         countDescGroup->setBounds( 4, 4, 394, 96 );
@@ -78,27 +145,41 @@ void surgesynthteam_ScaleEditor::buildUIFromScale()
     int nEds = scale.count;
     for( int i=0; i<nEds + 1; ++i )
     {
-        auto t = std::make_unique<ToneEditor>();
+        auto t = std::make_unique<ToneEditor>( i != 0 );
         notesSection->addAndMakeVisible( t.get() );
         t->setBounds( 10, 28 * i, 200, 24 );
 
         if( i == 0 )
         {
             t->displayValue->setText( "1", dontSendNotification ); // make it all readonly too
-            t->index->setText( "0", dontSendNotification );
+            t->displayIndex->setText( "0", dontSendNotification );
+            t->index = 0;
+            t->cents = 0;
         }
         else
         {
             auto tn = scale.tones[i-1];
             if( tn.type == Tunings::Tone::kToneRatio )
             {
-                t->displayValue->setText( juce::String( std::to_string( tn.ratio_n ) + "/" + std::to_string( tn.ratio_d ) ) );
+                t->displayValue->setText( juce::String( std::to_string( tn.ratio_n ) + "/" + std::to_string( tn.ratio_d ) ), dontSendNotification );
             }
             else
             {
                 t->displayValue->setText( juce::String( std::to_string( tn.cents ) ), dontSendNotification );
             }
-            t->index->setText( juce::String( std::to_string( i ) ), dontSendNotification );
+            t->displayIndex->setText( juce::String( std::to_string( i ) ), dontSendNotification );
+            t->index = i;
+            t->cents = tn.cents;
+            t->onToneChanged = [this]( int idx, juce::String newVal ) {
+                                   try {
+                                       this->scale.tones[idx-1] = Tunings::toneFromString( newVal.toStdString() );
+                                       this->toneEditors[idx]->cents = this->scale.tones[idx-1].cents;
+                                       this->recalculateScaleText();
+                                   } catch( Tunings::TuningError &e ) {
+                                       // Set background to red
+                                       std::cout << "Tuning Error " << e.what() << std::endl;
+                                   }
+                               };
         }
         
         toneEditors.push_back( std::move( t ) );
@@ -176,7 +257,6 @@ void surgesynthteam_ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
             auto t = scale.tones[i];
             auto c = t.cents;
             auto expectedC = scale.tones.back().cents / scale.count;
-            std::cout << i << " " << c << " " << expectedC * ( i + 1 ) << " " << ( c - expectedC * ( i + 1 ) )<< std::endl;
             
             rx = 1.0 + op / nup * ( c - expectedC * ( i + 1 ) ) / expectedC;
 
@@ -186,4 +266,29 @@ void surgesynthteam_ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
     }
 
     g.restoreState();
+}
+
+void surgesynthteam_ScaleEditor::recalculateScaleText()
+{
+    std::ostringstream oss;
+    oss << "! Scale generated by tuning editor\n"
+        << "Description FIXME\n"
+        << scale.count << "\n"
+        << "! \n";
+    for( int i=0; i<scale.count; ++i )
+    {
+        auto tn = scale.tones[i];
+        if( tn.type == Tunings::Tone::kToneRatio )
+        {
+            oss << tn.ratio_n << "/" << tn.ratio_d << "\n";
+        }
+        else
+        {
+            oss << std::fixed << std::setprecision(5) << tn.cents << "\n";
+        }
+    }
+
+    juce::String ns( oss.str().c_str() ); // sort of a dumb set of copies here. FIXME references and stuff
+    for( auto sl : listeners )
+        sl->scaleTextEdited( ns );
 }

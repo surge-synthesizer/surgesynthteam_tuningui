@@ -237,13 +237,23 @@ class surgesynthteam_ScaleEditor : public juce::Component
 {
 public:
 
-    class ToneEditor : public juce::Component {
+    class ToneEditor : public juce::Component, public juce::TextEditor::Listener {
     public:
-        ToneEditor();
+        ToneEditor(bool editable);
 
-        std::unique_ptr<juce::Label> index;
+        std::unique_ptr<juce::Label> displayIndex;
         std::unique_ptr<juce::TextEditor> displayValue;
-        std::unique_ptr<juce::Label> cents;
+        std::unique_ptr<juce::Component> coarseKnob, fineKnob;
+        
+        float cents;
+        int index;
+
+        virtual void 	textEditorTextChanged (juce::TextEditor &) override {
+            std::cout << "textEditorChanged " << displayValue->getText() << std::endl;
+            onToneChanged(index, displayValue->getText());
+        }
+        
+        std::function<void(int index, juce::String)> onToneChanged = [](int, juce::String) { };
     };
 
     class RadialScaleGraph : public juce::Component {
@@ -257,15 +267,17 @@ public:
     surgesynthteam_ScaleEditor(Tunings::Scale &s);
     ~surgesynthteam_ScaleEditor() override;
 
-    class scaleEditedListener {
+    class ScaleTextEditedListener {
     public:
-        virtual ~scaleEditedListener() { }
-        virtual void scaleEdited( juce::String newScale ) = 0;
+        virtual ~ScaleTextEditedListener() { }
+        virtual void scaleTextEdited( juce::String newScale ) = 0;
     };
-    void addScaleEditedListener( scaleEditedListener *sel ) { listeners.insert(sel); }
-    void removeScaleEditedListener( scaleEditedListener *sel ) { listeners.erase(sel); }
+    void addScaleTextEditedListener( ScaleTextEditedListener *sel ) { listeners.insert(sel); }
+    void removeScaleTextEditedListener( ScaleTextEditedListener *sel ) { listeners.erase(sel); }
 
-    void setScaleTests( juce::String &s ) {
+    void recalculateScaleText();
+    
+    void setScaleText( juce::String &s ) {
         scaleText = s;
         scale = Tunings::parseSCLData(s.toStdString());
     }
@@ -278,7 +290,7 @@ public:
     }
     
 private:
-    std::set<scaleEditedListener *> listeners;
+    std::set<ScaleTextEditedListener *> listeners;
     juce::String scaleText;
     Tunings::Scale scale;
     std::vector<std::unique_ptr<ToneEditor>> toneEditors;
