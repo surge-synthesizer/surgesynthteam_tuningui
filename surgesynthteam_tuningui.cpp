@@ -2,6 +2,9 @@
 
 using namespace juce;
 
+namespace surgesynthteam
+{
+    
 class InfiniteKnob : public Component {
 public:
     InfiniteKnob() : Component(), angle(0) { }
@@ -50,7 +53,7 @@ public:
     std::function<void(float)> onDragDelta = [](float f){};
 };
 
-surgesynthteam_ScaleEditor::ToneEditor::ToneEditor(bool editable)
+ScaleEditor::ToneEditor::ToneEditor(bool editable)
 {
     int xpos = 2;
     displayIndex.reset( new Label( "idx" ) );
@@ -91,7 +94,7 @@ surgesynthteam_ScaleEditor::ToneEditor::ToneEditor(bool editable)
     setSize( 300, 24 );
 }
 
-surgesynthteam_ScaleEditor::surgesynthteam_ScaleEditor(Tunings::Scale &inScale) {
+ScaleEditor::ScaleEditor(Tunings::Scale &inScale) {
     scale = inScale;
     scaleText = scale.rawText;
 
@@ -100,11 +103,11 @@ surgesynthteam_ScaleEditor::surgesynthteam_ScaleEditor(Tunings::Scale &inScale) 
     setSize( 800, 600 );
 }
 
-surgesynthteam_ScaleEditor::~surgesynthteam_ScaleEditor() {
+ScaleEditor::~ScaleEditor() {
 }
 
 
-void surgesynthteam_ScaleEditor::buildUIFromScale()
+void ScaleEditor::buildUIFromScale()
 {
     if( notesSection == nullptr )
     {
@@ -115,40 +118,52 @@ void surgesynthteam_ScaleEditor::buildUIFromScale()
 
         notesGroup.reset( new juce::GroupComponent( "st", TRANS( "Scale Tones" ) ) );
         addAndMakeVisible( notesGroup.get() );
-        notesGroup->setBounds( 4, 104, 394, 492 );
+        notesGroup->setBounds( 4, 104, 294, 492 );
 
         generatorGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Scale Generators" ) ) );
         addAndMakeVisible( generatorGroup.get() );
         generatorGroup->setBounds( 402, 4, 394, 96 );
 
-        analyticsGroup.reset( new juce::GroupComponent( "st", TRANS( "Analytics" ) ) );
-        addAndMakeVisible( analyticsGroup.get() );
-        analyticsGroup->setBounds( 402, 104, 394, 492 );
-
         notesSection = std::make_unique<Component>();
         notesViewport = std::make_unique<Viewport>();
         notesViewport->setViewedComponent( notesSection.get(), false );
-        notesViewport->setBounds( 10, 124, 380, 468 );
+        notesViewport->setBounds( 10, 124, 280, 468 );
         notesViewport->setScrollBarsShown( true, false );
         addAndMakeVisible( notesViewport.get() );
 
-        radialScaleGraph.reset( new RadialScaleGraph( scale ) );
-        addAndMakeVisible(radialScaleGraph.get() );
-        radialScaleGraph->setBounds( 410, 124, 380, 468 );
+        analyticsGroup.reset( new juce::GroupComponent( "st", TRANS( "Analytics" ) ) );
+        addAndMakeVisible( analyticsGroup.get() );
+        analyticsGroup->setBounds( 302, 104, 494, 492 );
+
+        analyticsTab.reset( new juce::TabbedComponent(TabbedButtonBar::TabsAtTop) );
+        addAndMakeVisible( analyticsTab.get() );
+        analyticsTab->setBounds( 310, 124, 480, 468 );
+        analyticsTab->setTabBarDepth(30);
+        radialScaleGraph = new RadialScaleGraph(scale);
+        analyticsTab->addTab( TRANS( "Radial Graph" ), Colours::lightgrey, radialScaleGraph, true );
     }
 
+    radialScaleGraph->scale = scale;
+    
     // clear prior components. Only need to do this if size has changed though. FIXME
-    for( auto &p : toneEditors )
-        notesSection->removeChildComponent( p.get() );
-    toneEditors.clear();
-
     int nEds = scale.count;
+    if( toneEditors.size() != scale.count + 1 )
+    {
+        for( auto &p : toneEditors )
+            notesSection->removeChildComponent( p.get() );
+        toneEditors.clear();
+        for( int i=0; i<nEds + 1; ++i )
+        {
+            auto t = std::make_unique<ToneEditor>( i != 0 );
+            notesSection->addAndMakeVisible( t.get() );
+            t->setBounds( 10, 28 * i, 200, 24 );
+            toneEditors.push_back( std::move( t ) );
+        }
+    }
+
     for( int i=0; i<nEds + 1; ++i )
     {
-        auto t = std::make_unique<ToneEditor>( i != 0 );
-        notesSection->addAndMakeVisible( t.get() );
-        t->setBounds( 10, 28 * i, 200, 24 );
-
+        auto t = toneEditors[i].get();
         if( i == 0 )
         {
             t->displayValue->setText( "1", dontSendNotification ); // make it all readonly too
@@ -181,14 +196,14 @@ void surgesynthteam_ScaleEditor::buildUIFromScale()
                                    }
                                };
         }
-        
-        toneEditors.push_back( std::move( t ) );
     }
     notesSection->setSize( 380, 30 * (nEds + 1 ) );
+
+    repaint();
 }
 
-void surgesynthteam_ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
-    // g.fillAll( Colour( 255, 0, 0 ) );
+void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
+    g.fillAll( getLookAndFeel().findColour( juce::ResizableWindow::backgroundColourId ) );
     int w = getWidth();
     int h = getHeight();
     float r = std::min( w, h )  / 2.0;
@@ -268,7 +283,7 @@ void surgesynthteam_ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
     g.restoreState();
 }
 
-void surgesynthteam_ScaleEditor::recalculateScaleText()
+void ScaleEditor::recalculateScaleText()
 {
     std::ostringstream oss;
     oss << "! Scale generated by tuning editor\n"
@@ -291,4 +306,9 @@ void surgesynthteam_ScaleEditor::recalculateScaleText()
     juce::String ns( oss.str().c_str() ); // sort of a dumb set of copies here. FIXME references and stuff
     for( auto sl : listeners )
         sl->scaleTextEdited( ns );
+
+    radialScaleGraph->scale = scale;
+    radialScaleGraph->repaint();
 }
+
+};

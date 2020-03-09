@@ -23,17 +23,20 @@
 #include <sstream>
 #include <set>
 
-class surgesynthteam_TuningTableListBoxModel : public juce::TableListBoxModel,
+namespace surgesynthteam
+{
+    
+class TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
 {
 public:
-    surgesynthteam_TuningTableListBoxModel() {
+    TuningTableListBoxModel() {
         for( int i=0; i<128; ++i )
             notesOn[i] = false;
         
         rmbMenu = std::make_unique<juce::PopupMenu>();
     }
-    ~surgesynthteam_TuningTableListBoxModel() {
+    ~TuningTableListBoxModel() {
         table = nullptr;
     }
 
@@ -233,7 +236,7 @@ private:
 };
 
 
-class surgesynthteam_ScaleEditor : public juce::Component
+class ScaleEditor : public juce::Component, public juce::FileDragAndDropTarget
 {
 public:
 
@@ -249,7 +252,6 @@ public:
         int index;
 
         virtual void 	textEditorTextChanged (juce::TextEditor &) override {
-            std::cout << "textEditorChanged " << displayValue->getText() << std::endl;
             onToneChanged(index, displayValue->getText());
         }
         
@@ -264,8 +266,8 @@ public:
         Tunings::Scale scale;
     };
     
-    surgesynthteam_ScaleEditor(Tunings::Scale &s);
-    ~surgesynthteam_ScaleEditor() override;
+    ScaleEditor(Tunings::Scale &s);
+    ~ScaleEditor() override;
 
     class ScaleTextEditedListener {
     public:
@@ -283,7 +285,25 @@ public:
     }
 
     void buildUIFromScale();
-    
+
+    virtual bool isInterestedInFileDrag (const juce::StringArray& files) override {
+        std::cout << "IIIFD" << std::endl;
+        return true; // FIXME
+    }
+
+    virtual void filesDropped (const juce::StringArray& filenames, int mouseX, int mouseY) override {
+        if( filenames.size() != 1 ) return;
+        juce::File f( filenames[0] );
+        if( f.hasFileExtension( ".scl" ) )
+        {
+            auto s = f.loadFileAsString();
+            setScaleText( s );
+            for( auto sl : listeners )
+                sl->scaleTextEdited( s );
+            buildUIFromScale();
+        }
+    }
+        
     virtual void paint (juce::Graphics& g) override {
         // (Our component is opaque, so we must completely fill the background with a solid colour)
         g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
@@ -296,7 +316,54 @@ private:
     std::vector<std::unique_ptr<ToneEditor>> toneEditors;
     std::unique_ptr<juce::Component> notesSection;
     std::unique_ptr<juce::Viewport> notesViewport;
-    std::unique_ptr<RadialScaleGraph> radialScaleGraph;
+
+    std::unique_ptr<juce::TabbedComponent> analyticsTab;
+    RadialScaleGraph* radialScaleGraph;
     
     std::unique_ptr<juce::GroupComponent> countDescGroup, notesGroup, generatorGroup, analyticsGroup;
+};
+
+class ScaleEditorWindow : public juce::DocumentWindow {
+public:
+    ScaleEditorWindow(ScaleEditor *s) // of which I take ownership
+        : juce::DocumentWindow ("Advanced Scale Editor",
+                                juce::Colour( 0xFF000000 ),
+                                juce::DocumentWindow::allButtons ),
+          editor( s )
+        {
+            if( editor )
+            {
+                int baroff = 25;
+                addAndMakeVisible( editor );
+                juce::Rectangle<int> area( 0, baroff,  editor->getWidth(), editor->getHeight() + baroff );
+
+                juce::RectanglePlacement placement (juce::RectanglePlacement::xLeft
+                                                    | juce::RectanglePlacement::yTop
+                                                    | juce::RectanglePlacement::doNotResize);
+
+                auto result = placement.appliedTo (area, juce::Desktop::getInstance().getDisplays()
+                                                   .getMainDisplay().userArea.reduced (20));
+                setBounds (result);
+                editor->setBounds( 0, baroff, editor->getWidth(), editor->getHeight() );
+
+                setResizable( false, false );
+                setUsingNativeTitleBar( false );
+            }
+        }
+
+    ~ScaleEditorWindow() {
+        if( editor )
+            delete editor;
+    }
+    void closeButtonPressed()
+        {
+            delete this; // sigh.
+        }
+    
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScaleEditorWindow);
+    ScaleEditor *editor;
+};
+
+
 };
