@@ -53,14 +53,52 @@ public:
     std::function<void(float)> onDragDelta = [](float f){};
 };
 
+    class NoteLED : public Component,  public juce::AsyncUpdater
+{
+public:
+    void setNotes(int n) {
+        notes = n;
+        triggerAsyncUpdate();
+    }
+
+    virtual void handleAsyncUpdate() override {
+        repaint();
+    }
+
+    
+    virtual void paint( Graphics &g ) override {
+        g.fillAll( getLookAndFeel().findColour( juce::ResizableWindow::backgroundColourId ) );
+
+        if( notes > 0 )
+        {
+            g.setColour( Colour( 200,200,215 ) );
+            g.fillEllipse( 1,1,8,8 );
+            g.setColour( Colour( 120,120,255 ) );
+            g.fillEllipse( 2, 2, 6, 6 );
+        }
+        else
+        {
+            g.setColour( Colour( 10, 10, 20 ) );
+            g.fillEllipse( 2, 2, 6, 6 );
+        }
+    }
+    int notes;
+};
+    
 ScaleEditor::ToneEditor::ToneEditor(bool editable)
 {
     int xpos = 2;
+    playingLED.reset( new NoteLED() );
+    addAndMakeVisible(playingLED.get() );
+    playingLED->setBounds( xpos, 7, 10, 10 );
+    xpos += 12;
+
     displayIndex.reset( new Label( "idx" ) );
     addAndMakeVisible( displayIndex.get() );
-    displayIndex->setBounds( xpos, 2, 40, 20 );
-    xpos += 44;
-    
+    displayIndex->setBounds( xpos, 2, 30, 20 );
+    xpos += 34;
+
+
     displayValue.reset( new TextEditor( "display value" ) );
     addAndMakeVisible( displayValue.get() );
     displayValue->setBounds( xpos, 2, 100, 20 );
@@ -94,6 +132,22 @@ ScaleEditor::ToneEditor::ToneEditor(bool editable)
     setSize( 300, 24 );
 }
 
+void ScaleEditor::ToneEditor::incNotes() {
+    playingNotes ++;
+    if( playingLED.get() )
+    {
+        dynamic_cast<NoteLED *>(playingLED.get())->setNotes(playingNotes);
+    }
+}
+
+void ScaleEditor::ToneEditor::decNotes() {
+    playingNotes --;
+    if( playingLED.get() )
+    {
+        dynamic_cast<NoteLED *>(playingLED.get())->setNotes(playingNotes);
+    }
+}
+    
 ScaleEditor::ScaleEditor(Tunings::Scale &inScale) {
     scale = inScale;
     scaleText = scale.rawText;
@@ -140,7 +194,7 @@ void ScaleEditor::buildUIFromScale()
         analyticsTab->setBounds( 310, 124, 480, 468 );
         analyticsTab->setTabBarDepth(30);
         radialScaleGraph = new RadialScaleGraph(scale);
-        analyticsTab->addTab( TRANS( "Radial Graph" ), Colours::lightgrey, radialScaleGraph, true );
+        analyticsTab->addTab( TRANS( "Graph" ), Colours::lightgrey, radialScaleGraph, true );
     }
 
     radialScaleGraph->scale = scale;

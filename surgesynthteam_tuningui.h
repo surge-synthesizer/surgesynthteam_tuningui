@@ -246,11 +246,15 @@ public:
 
         std::unique_ptr<juce::Label> displayIndex;
         std::unique_ptr<juce::TextEditor> displayValue;
-        std::unique_ptr<juce::Component> coarseKnob, fineKnob;
+        std::unique_ptr<juce::Component> coarseKnob, fineKnob, playingLED;
         
         float cents;
         int index;
 
+        int playingNotes = 0;
+        void incNotes();
+        void decNotes();
+        
         virtual void 	textEditorTextChanged (juce::TextEditor &) override {
             onToneChanged(index, displayValue->getText());
         }
@@ -258,15 +262,31 @@ public:
         std::function<void(int index, juce::String)> onToneChanged = [](int, juce::String) { };
     };
 
-    class RadialScaleGraph : public juce::Component {
+    class RadialScaleGraph : public juce::Component, juce::ComboBox::Listener {
     public:
-        RadialScaleGraph(Tunings::Scale &s) : scale( s ) { }
+        RadialScaleGraph(Tunings::Scale &s) : scale( s ) {
+            comboBox.reset( new juce::ComboBox( "Mode Box" ) );
+            addAndMakeVisible(comboBox.get() );
+            comboBox->setBounds( 2, 2, 30, 25 );
+            comboBox->addItem( "radial", 1 );
+            comboBox->addItem( "angular", 2 );
+            comboBox->addListener( this );
+        }
 
         virtual void paint( juce::Graphics &g ) override;
         Tunings::Scale scale;
         std::vector<juce::Rectangle<float>> screenHotSpots;
-        int hotSpotIndex = -1;
+        std::unique_ptr<juce::ComboBox> comboBox;
+        int hotSpotIndex = -1, drawMode = 1;
         virtual void mouseMove( const juce::MouseEvent &e ) override;
+        virtual void comboBoxChanged (juce::ComboBox *comboBoxThatHasChanged) override {
+            int tdrawMode = comboBox->getSelectedId();
+            if( tdrawMode != drawMode )
+            {
+                drawMode = tdrawMode;
+                repaint();
+            }
+        }
     };
     
     ScaleEditor(Tunings::Scale &s);
@@ -311,12 +331,32 @@ public:
             buildUIFromScale();
         }
     }
-        
+
+    void resetScale( const Tunings::Scale &s )
+        {
+            if( scale.rawText != s.rawText )
+            {
+                scale = s;
+                scaleText = s.rawText;
+                buildUIFromScale();
+                repaint();
+            }
+        }
+    
     virtual void paint (juce::Graphics& g) override {
         // (Our component is opaque, so we must completely fill the background with a solid colour)
         g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
     }
-    
+
+    void scaleNoteOn( int scaleNote ) {
+        if( scaleNote < toneEditors.size() )
+            toneEditors[scaleNote]->incNotes();
+    }
+    void scaleNoteOff( int scaleNote ) {
+        if( scaleNote < toneEditors.size() )
+            toneEditors[scaleNote]->decNotes();
+    }
+        
 private:
     std::set<ScaleTextEditedListener *> listeners;
     juce::String scaleText;
@@ -365,12 +405,14 @@ public:
     }
     void closeButtonPressed()
         {
+            onCloseButton();
             delete this; // sigh.
         }
-    
+
+    std::function<void(void)> onCloseButton = [](){};
+    ScaleEditor *editor;
 private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ScaleEditorWindow);
-    ScaleEditor *editor;
 };
 
 
