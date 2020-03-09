@@ -262,8 +262,11 @@ public:
     public:
         RadialScaleGraph(Tunings::Scale &s) : scale( s ) { }
 
-        virtual void paint( juce::Graphics &g );
+        virtual void paint( juce::Graphics &g ) override;
         Tunings::Scale scale;
+        std::vector<juce::Rectangle<float>> screenHotSpots;
+        int hotSpotIndex = -1;
+        virtual void mouseMove( const juce::MouseEvent &e ) override;
     };
     
     ScaleEditor(Tunings::Scale &s);
@@ -286,9 +289,14 @@ public:
 
     void buildUIFromScale();
 
-    virtual bool isInterestedInFileDrag (const juce::StringArray& files) override {
-        std::cout << "IIIFD" << std::endl;
-        return true; // FIXME
+    virtual bool isInterestedInFileDrag (const juce::StringArray& filenames) override {
+        if( filenames.size() == 1 )
+        {
+            juce::File f( filenames[ 0 ] );
+            if( f.hasFileExtension( ".scl" ) )
+                return true;
+        }
+        return false;
     }
 
     virtual void filesDropped (const juce::StringArray& filenames, int mouseX, int mouseY) override {

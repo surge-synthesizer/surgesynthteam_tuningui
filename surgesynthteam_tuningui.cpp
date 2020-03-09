@@ -206,23 +206,40 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
     g.fillAll( getLookAndFeel().findColour( juce::ResizableWindow::backgroundColourId ) );
     int w = getWidth();
     int h = getHeight();
-    float r = std::min( w, h )  / 2.0;
+    float r = std::min( w, h )  / 2.1;
     float xo = ( w - 2 * r ) / 2.0;
     float yo = ( h - 2 * r ) / 2.0;
+    double outerRadiusExtension = 0.4;
+
 
     g.saveState();
 
-    g.addTransform( AffineTransform::translation( xo, yo ) );
-    g.addTransform( AffineTransform::translation( r, r ) );
-    g.addTransform( AffineTransform::scale( r, - r ) );
-    g.addTransform( AffineTransform::scale( 0.7, 0.7 ) );
+    auto screenTransform = AffineTransform::scale( 1.0 / ( 1.0 + outerRadiusExtension * 1.1 ) ).scaled( r, -r ).translated( r, r ).translated( xo, yo );
+    
+    g.addTransform( screenTransform );
 
-    // We are now in a normal x y 0 1 coordinate system
+    // We are now in a normal x y 0 1 coordinate system with 0,0 at the center. Cool
 
-    // Now draw the gray spokes
-    float op = 0.4;
-    int nup = 2;
-    int ndn = 3;
+    // So first things first - scan for range.
+    double ETInterval = scale.tones.back().cents / scale.count;
+    double dIntMin = 0, dIntMax = 0;
+    for( int i=0; i<scale.count; ++i )
+    {
+        auto t = scale.tones[i];
+        auto c = t.cents;
+            
+        auto intervalDistance = ( c - ETInterval * ( i + 1 ) ) / ETInterval;
+        dIntMax = std::max( intervalDistance, dIntMax );
+        dIntMin = std::min( intervalDistance, dIntMin );
+    }
+    double range = std::max( dIntMax, -dIntMin / 2.0 ); // twice as many inside rings
+    int iRange = std::ceil( range );
+
+    double dInterval = outerRadiusExtension / iRange;
+    double nup = iRange;
+    double ndn = (int)( iRange * 1.6 );
+    
+    // Now draw the interval circles
     for( int i=-ndn; i<=nup; ++i )
     {
         if( i == 0 )
@@ -230,54 +247,70 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         }
         else
         {
-            float pos = log(  std::abs( i ) + 1 ) / log(5 + 1);
-
-            pos = std::abs( i ) / nup;
-            float cpos = std::max( -1.f, pos );
+            float pos = 1.0 * std::abs( i ) / ndn;
+            float cpos = std::max( 0.f, pos );
             
             g.setColour( Colour( 110, 110, 120 ).interpolatedWith( getLookAndFeel().findColour (ResizableWindow::backgroundColourId), cpos * 0.8 ) );
 
-            float rad = 1;
-            if( i < 0 )
-                rad = 1.0 - pos * op;
-            else
-                rad = 1.0 + pos * op;
+            float rad = 1.0 + dInterval * i;
             g.drawEllipse( - rad, -rad, 2 * rad, 2 * rad, 0.01 );
         }
     }
 
-    g.setColour( Colour( 110, 110, 120 ) );
     for( int i=0; i<scale.count; ++i )
     {
         double frac = 1.0 * i / (scale.count);
         double sx = std::sin( frac * 2.0 * MathConstants<double>::pi );
         double cx = std::cos( frac * 2.0 * MathConstants<double>::pi );
 
-        g.drawLine( 0, 0, (1.0 + op) * sx, (1.0 + op) * cx, 0.01 );
+        g.setColour( Colour( 110, 110, 120 ) );
+        g.drawLine( 0, 0, (1.0 + outerRadiusExtension) * sx, (1.0 + outerRadiusExtension) * cx, 0.01 );
+
+        g.saveState();
+        g.addTransform( AffineTransform::rotation( ( -frac + 0.25 ) * 2.0 * MathConstants<double>::pi ) );
+        g.addTransform( AffineTransform::translation( 1.0 + outerRadiusExtension , 0.0 ) );
+        g.addTransform( AffineTransform::rotation( MathConstants<double>::pi * 0.5 ) );
+        g.addTransform( AffineTransform::scale( -1.0, 1.0 ) );
+        g.setColour( Colour( 200,200,240 ) );
+        Rectangle<float> textPos( 0, -0.1, 0.1, 0.1 );
+        g.setFont( 0.1 );
+        g.drawText( juce::String( i ), textPos, Justification::centred, 1 );
+        g.restoreState();
     }
 
     // Draw the ring at 1.0
     g.setColour( Colour( 255, 255, 255 ) );
     g.drawEllipse( -1, -1, 2, 2, 0.01 );
 
-    for( int i=-1; i<scale.count; ++i )
+    // Then draw ellipses for each note
+    screenHotSpots.clear();
+    
+    for( int i=1; i<=scale.count; ++i )
     {
         double frac = 1.0 * i / (scale.count);
         double sx = std::sin( frac * 2.0 * MathConstants<double>::pi );
         double cx = std::cos( frac * 2.0 * MathConstants<double>::pi );
 
-        float rx = 1.0;
-        if( i != -1 )
-        {
-            auto t = scale.tones[i];
-            auto c = t.cents;
-            auto expectedC = scale.tones.back().cents / scale.count;
-            
-            rx = 1.0 + op / nup * ( c - expectedC * ( i + 1 ) ) / expectedC;
+        auto t = scale.tones[i-1];
+        auto c = t.cents;
+        auto expectedC = scale.tones.back().cents / scale.count;
+        
+        auto rx = 1.0 + dInterval * ( c - expectedC * i ) / expectedC;
 
-        }
-        g.setColour( Colour( 255, 128 * rx, 0 ) );
-        g.fillEllipse( rx * sx - 0.05, rx * cx - 0.05, 0.1, 0.1 );
+        if( hotSpotIndex == i - 1 )
+            g.setColour( Colour( 255, 255, 255 ) );
+        else
+            g.setColour( Colour( 255, 128 * rx, 0 ) );
+
+        float x0 = rx * sx - 0.05,
+            y0 = rx * cx - 0.05,
+            dx = 0.1, dy = 0.1;
+        
+        g.fillEllipse( x0, y0, dx, dy );
+        dx += x0; dy += y0;
+        screenTransform.transformPoint( x0, y0 );
+        screenTransform.transformPoint( dx, dy );
+        screenHotSpots.push_back( Rectangle<float>( x0, dy, dx-x0, y0-dy ) );
     }
 
     g.restoreState();
@@ -309,6 +342,20 @@ void ScaleEditor::recalculateScaleText()
 
     radialScaleGraph->scale = scale;
     radialScaleGraph->repaint();
+}
+
+void ScaleEditor::RadialScaleGraph::mouseMove( const juce::MouseEvent &e ) {
+    int ohsi = hotSpotIndex;
+    hotSpotIndex = -1;
+    int h = 0;
+    for( auto r : screenHotSpots )
+    {
+        if( r.contains( e.getPosition().toFloat() ) )
+            hotSpotIndex = h;
+        h++;
+    }
+    if( ohsi != hotSpotIndex )
+        repaint();
 }
 
 };
