@@ -194,6 +194,16 @@ void ScaleEditor::buildUIFromScale()
         analyticsTab->setBounds( 310, 124, 480, 468 );
         analyticsTab->setTabBarDepth(30);
         radialScaleGraph = new RadialScaleGraph(scale);
+        radialScaleGraph->onToneChanged = [this](int idx, double val)
+                                              {
+                                                  if( idx >= 0 && idx < this->scale.count )
+                                                  {
+                                                      this->scale.tones[idx].type = Tunings::Tone::kToneCents;
+                                                      this->scale.tones[idx].cents = val;
+                                                      this->recalculateScaleText();
+                                                  }
+                                              };
+        
         analyticsTab->addTab( TRANS( "Graph" ), Colours::lightgrey, radialScaleGraph, true );
     }
 
@@ -257,6 +267,13 @@ void ScaleEditor::buildUIFromScale()
 }
 
 void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
+    if( notesOn.size() != scale.count )
+    {
+        notesOn.clear();
+        notesOn.resize(scale.count);
+        for( int i=0; i<scale.count; ++i )
+            notesOn[i] = 0;
+    }
     g.fillAll( getLookAndFeel().findColour( juce::ResizableWindow::backgroundColourId ) );
     int w = getWidth();
     int h = getHeight();
@@ -268,7 +285,8 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
 
     g.saveState();
 
-    auto screenTransform = AffineTransform::scale( 1.0 / ( 1.0 + outerRadiusExtension * 1.1 ) ).scaled( r, -r ).translated( r, r ).translated( xo, yo );
+    screenTransform = AffineTransform::scale( 1.0 / ( 1.0 + outerRadiusExtension * 1.1 ) ).scaled( r, -r ).translated( r, r ).translated( xo, yo );
+    screenTransformInverted = screenTransform.inverted();
     
     g.addTransform( screenTransform );
 
@@ -289,7 +307,7 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
     double range = std::max( dIntMax, -dIntMin / 2.0 ); // twice as many inside rings
     int iRange = std::ceil( range );
 
-    double dInterval = outerRadiusExtension / iRange;
+    dInterval = outerRadiusExtension / iRange;
     double nup = iRange;
     double ndn = (int)( iRange * 1.6 );
     
@@ -317,7 +335,10 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         double sx = std::sin( frac * 2.0 * MathConstants<double>::pi );
         double cx = std::cos( frac * 2.0 * MathConstants<double>::pi );
 
-        g.setColour( Colour( 110, 110, 120 ) );
+        if( notesOn[i] > 0 )
+            g.setColour( Colour( 120, 120, 255 ) );
+        else
+            g.setColour( Colour( 110, 110, 120 ) );
         g.drawLine( 0, 0, (1.0 + outerRadiusExtension) * sx, (1.0 + outerRadiusExtension) * cx, 0.01 );
 
         g.saveState();
@@ -325,7 +346,11 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         g.addTransform( AffineTransform::translation( 1.0 + outerRadiusExtension , 0.0 ) );
         g.addTransform( AffineTransform::rotation( MathConstants<double>::pi * 0.5 ) );
         g.addTransform( AffineTransform::scale( -1.0, 1.0 ) );
-        g.setColour( Colour( 200,200,240 ) );
+
+        if( notesOn[i] > 0 )
+            g.setColour( Colour( 120, 120, 255 ) );
+        else
+            g.setColour( Colour( 200,200,240 ) );
         Rectangle<float> textPos( 0, -0.1, 0.1, 0.1 );
         g.setFont( 0.1 );
         g.drawText( juce::String( i ), textPos, Justification::centred, 1 );
@@ -359,8 +384,16 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         float x0 = rx * sx - 0.05,
             y0 = rx * cx - 0.05,
             dx = 0.1, dy = 0.1;
-        
+
+        g.drawLine( sx, cx, rx * sx, rx * cx, 0.01 );
         g.fillEllipse( x0, y0, dx, dy );
+        
+        if( notesOn[i % scale.count] > 0 )
+        {
+            g.setColour( Colour( 120, 120, 255 ) );
+            g.drawEllipse( x0, y0, dx, dy, 0.02 );
+        }
+
         dx += x0; dy += y0;
         screenTransform.transformPoint( x0, y0 );
         screenTransform.transformPoint( dx, dy );
@@ -411,5 +444,33 @@ void ScaleEditor::RadialScaleGraph::mouseMove( const juce::MouseEvent &e ) {
     if( ohsi != hotSpotIndex )
         repaint();
 }
+void ScaleEditor::RadialScaleGraph::mouseDown( const juce::MouseEvent &e ) {
+    if( hotSpotIndex == -1 )
+        centsAtMouseDown = 0;
+    else
+    {
+        centsAtMouseDown = scale.tones[hotSpotIndex].cents;
+        dIntervalAtMouseDown = dInterval;
+    }
+}
 
+void ScaleEditor::RadialScaleGraph::mouseDrag( const juce::MouseEvent &e ) {
+    if( hotSpotIndex != -1 )
+    {
+        auto mdp = e.getMouseDownPosition().toFloat();
+        auto xd = mdp.getX();
+        auto yd = mdp.getY();
+        screenTransformInverted.transformPoint( xd,yd );
+        
+        auto mp = e.getPosition().toFloat();
+        auto x = mp.getX();
+        auto y = mp.getY();
+        screenTransformInverted.transformPoint( x,y );
+        
+
+        auto dr = - sqrt( xd * xd + yd * yd ) + sqrt( x * x + y * y );
+        dr = dr * 0.7; // FIXME - make this a variable
+        onToneChanged( hotSpotIndex, centsAtMouseDown + 100 * dr / dIntervalAtMouseDown );
+    }
+}
 };
