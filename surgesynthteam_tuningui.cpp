@@ -35,15 +35,25 @@ public:
         repaint();
     }
     virtual void paint( Graphics &g ) override {
+        int w = getWidth();
+        int h = getHeight();
+        int b = std::min( w, h );
+        float r = b / 2.0;
+        float dx = ( w - b ) / 2.0;
+        float dy = ( h - b ) / 2.0;
         g.saveState();
-        g.addTransform( AffineTransform::translation( 10, 10 ) );
+        g.addTransform( AffineTransform::translation( dx, dy ) );
+        g.addTransform( AffineTransform::translation( r, r ) );
         g.addTransform( AffineTransform::rotation( angle / 50.0 * 2.0 * MathConstants<double>::pi ) );
         g.setColour( getLookAndFeel().findColour( juce::Slider::rotarySliderFillColourId ) );
-        g.fillEllipse( -7, -7, 14, 14 );
+        g.fillEllipse( -(r-3), -(r-3), (r-3)*2, (r-3)*2 );
         g.setColour( getLookAndFeel().findColour( juce::GroupComponent::outlineColourId ) );
-        g.drawEllipse( -7, -7, 14, 14, 2 );
-        g.setColour( getLookAndFeel().findColour( juce::Slider::thumbColourId ) );
-        g.drawLine( 0, -9, 0, 9, 3 );
+        g.drawEllipse( -(r-3), -(r-3), (r-3)*2, (r-3)*2, r / 5.0 );
+        if( enabled )
+        {
+            g.setColour( getLookAndFeel().findColour( juce::Slider::thumbColourId ) );
+            g.drawLine( 0, -(r-1), 0, r-1, r / 3.0 );
+        }
         g.restoreState();
     }
 
@@ -51,6 +61,7 @@ public:
     bool isDragging = false;
     float angle;
     std::function<void(float)> onDragDelta = [](float f){};
+    bool enabled = true;
 };
     
 class ScaleEditor::RadialScaleGraph : public juce::Component, juce::ComboBox::Listener {
@@ -112,34 +123,129 @@ public:
 class ScaleEditor::GeneratorSection : public juce::Component, public juce::Button::Listener {
 public:
     GeneratorSection(ScaleEditor *ed) : editor( ed ) {
-        evenDivLabel.reset( new Label( "edl", "Even Division of M into N Tones" ) );
-        addAndMakeVisible( evenDivLabel.get() );
-        evenDivLabel->setBounds( 0, 0, 210, 22 );
-        evenDivLabel->setJustificationType( Justification::centred );
 
-        evenDivMLabel.reset( new Label( "edm", "M" ) );
-        addAndMakeVisible( evenDivMLabel.get() );
-        evenDivMLabel->setBounds( 0, 29, 20, 22 );
+        int xpos = 0;
+        {
+            evenDivLabel.reset( new Label( "edl", "Even Division of M into N Tones" ) );
+            addAndMakeVisible( evenDivLabel.get() );
+            evenDivLabel->setBounds( xpos, 0, 210, 22 );
+            evenDivLabel->setJustificationType( Justification::centred );
 
-        evenDivM.reset( new TextEditor( "divm" ) );
-        addAndMakeVisible( evenDivM.get() );
-        evenDivM->setBounds( 24, 29, 56, 22 );
-        evenDivM->setText( "2", dontSendNotification );
+            int lxp = xpos;
+            evenDivMLabel.reset( new Label( "edm", "M" ) );
+            addAndMakeVisible( evenDivMLabel.get() );
+            evenDivMLabel->setBounds( lxp, 29, 20, 22 );
+            lxp += 20 + 4;
+
+            evenDivM.reset( new TextEditor( "divm" ) );
+            addAndMakeVisible( evenDivM.get() );
+            evenDivM->setBounds( lxp, 29, 56, 22 );
+            evenDivM->setText( "2", dontSendNotification );
+            lxp += 56 + 6;
         
-        evenDivNLabel.reset( new Label( "edm", "N" ) );
-        addAndMakeVisible( evenDivNLabel.get() );
-        evenDivNLabel->setBounds( 80, 29, 20, 22 );
+            evenDivNLabel.reset( new Label( "edm", "N" ) );
+            addAndMakeVisible( evenDivNLabel.get() );
+            evenDivNLabel->setBounds( lxp, 29, 20, 22 );
+            lxp += 20 + 4;
+                
+            evenDivN.reset( new TextEditor( "divn" ) );
+            addAndMakeVisible( evenDivN.get() );
+            evenDivN->setBounds( lxp, 29, 56, 22 );
+            evenDivN->setText( "12", dontSendNotification );
+            lxp += 56 + 4;
 
-        evenDivN.reset( new TextEditor( "divn" ) );
-        addAndMakeVisible( evenDivN.get() );
-        evenDivN->setBounds( 104, 29, 56, 22 );
-        evenDivN->setText( "12", dontSendNotification );
+            evenDivApply.reset( new TextButton( "ap" ) );
+            addAndMakeVisible(evenDivApply.get() );
+            evenDivApply->setBounds( lxp, 29, 46, 22 );
+            evenDivApply->setButtonText( "Apply" );
+            evenDivApply->addListener( this );
+        }
 
-        evenDivApply.reset( new TextButton( "ap" ) );
-        addAndMakeVisible(evenDivApply.get() );
-        evenDivApply->setBounds( 164, 29, 46, 22 );
-        evenDivApply->setButtonText( "Apply" );
-        evenDivApply->addListener( this );
+        xpos += 210 + 4;
+
+
+        xpos += 10;
+        Path p;
+        p.addRectangle( xpos ,0, 1, 29 + 22 );
+        p1.reset( new DrawablePath(  ) );
+        addAndMakeVisible( p1.get() );
+        p1->setBounds( xpos, 0, 215, 29 + 22 );
+        p1->setFill( getLookAndFeel().findColour( GroupComponent::outlineColourId ) );
+        p1->setPath( p );
+        xpos += 10;
+
+        {
+            setOctaveLabel.reset( new Label( "so", "Set Octave To" ) );
+            addAndMakeVisible(setOctaveLabel.get() );
+            setOctaveLabel->setBounds( xpos, 0, 100, 22 );
+            setOctaveLabel->setColour( Label::textColourId, Colour( 190, 190, 200 ) );
+
+            setOctaveTE.reset( new TextEditor( "sote" ) );
+            addAndMakeVisible( setOctaveTE.get() );
+            setOctaveTE->setText( "soon..." );
+            setOctaveTE->setBounds( xpos, 29, 100, 22 );
+            setOctaveTE->setReadOnly( true );
+            xpos += 108;
+
+            setOctaveKnob.reset( new InfiniteKnob() );
+            addAndMakeVisible( setOctaveKnob.get() );
+            setOctaveKnob->setBounds( xpos, 0, 29 + 22, 29 + 22 );
+            setOctaveKnob->enabled = false;
+            xpos += 29 + 22 + 4;
+        }
+
+        xpos += 10;
+        Path pp;
+        pp.addRectangle( xpos ,0, 1, 29 + 22 );
+        p2.reset( new DrawablePath(  ) );
+        addAndMakeVisible( p2.get() );
+        p2->setBounds( xpos, 0, 215, 29 + 22 );
+        p2->setFill( getLookAndFeel().findColour( GroupComponent::outlineColourId ) );
+        p2->setPath( pp );
+        xpos += 10;
+
+        {
+            compress1.reset( new Label( "so", "Adjust towards or" ) );
+            addAndMakeVisible(compress1.get() );
+            compress1->setBounds( xpos, 0, 140, 22 );
+            compress2.reset( new Label( "so", "away from Even Temp" ) );
+            addAndMakeVisible(compress2.get() );
+            compress2->setBounds( xpos, 22, 140, 22 );
+
+            compress1->setColour( Label::textColourId, Colour( 190, 190, 200 ) );
+            compress2->setColour( Label::textColourId, Colour( 190, 190, 200 ) );
+
+            xpos += 148;
+
+            compressKnob.reset( new InfiniteKnob() );
+            addAndMakeVisible( compressKnob.get() );
+            compressKnob->setBounds( xpos, 0, 29 + 22, 29 + 22 );
+            compressKnob->enabled = false;
+            xpos += 29 + 22 + 4;
+        }
+
+        xpos += 10;
+        Path ppp;
+        ppp.addRectangle( xpos ,0, 1, 29 + 22 );
+        p3.reset( new DrawablePath(  ) );
+        addAndMakeVisible( p3.get() );
+        p3->setBounds( xpos, 0, 215, 29 + 22 );
+        p3->setFill( getLookAndFeel().findColour( GroupComponent::outlineColourId ) );
+        p3->setPath( ppp );
+        xpos += 10;
+
+        {
+            resetL.reset( new Label( "so", "Reset to 12-TET" ) );
+            addAndMakeVisible(resetL.get() );
+            resetL->setBounds( xpos, 0, 100, 22 );
+
+            resetB.reset( new TextButton( "rb" ) );
+            addAndMakeVisible( resetB.get() );
+            resetB->setButtonText( "Reset" );
+            resetB->setBounds( xpos, 29, 100, 22 );
+            resetB->addListener( this );
+            xpos += 108;
+        }
 
     }
 
@@ -155,12 +261,34 @@ public:
             editor->radialScaleGraph->repaint();
 
         }
+
+        if (buttonThatWasClicked == resetB.get())
+        {
+            auto s  = Tunings::evenTemperament12NoteScale();
+            for( auto sl : editor->listeners )
+                sl->scaleTextEdited( s.rawText );
+
+            editor->radialScaleGraph->scale = s;
+            editor->radialScaleGraph->repaint();
+        }
     }
 
     ScaleEditor *editor;
     std::unique_ptr<Label> evenDivLabel, evenDivMLabel, evenDivNLabel;
     std::unique_ptr<TextEditor> evenDivM, evenDivN;
     std::unique_ptr<Button> evenDivApply;
+
+    std::unique_ptr<Label> setOctaveLabel;
+    std::unique_ptr<TextEditor> setOctaveTE;
+    std::unique_ptr<InfiniteKnob> setOctaveKnob;
+
+    std::unique_ptr<Label> compress1, compress2;
+    std::unique_ptr<InfiniteKnob> compressKnob;
+
+    std::unique_ptr<Label> resetL;
+    std::unique_ptr<Button> resetB;
+
+    std::unique_ptr<DrawablePath> p1, p2, p3;
 };
     
     
@@ -288,29 +416,29 @@ void ScaleEditor::buildUIFromScale()
         // It's my first time through<
         notesGroup.reset( new juce::GroupComponent( "st", TRANS( "Scale Tones" ) ) );
         addAndMakeVisible( notesGroup.get() );
-        notesGroup->setBounds( 4, 104, 294, 492 );
+        notesGroup->setBounds( 4, 4, 294, 492 );
 
         generatorGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Scale Generators" ) ) );
         addAndMakeVisible( generatorGroup.get() );
-        generatorGroup->setBounds( 4, 4, 794, 96 );
+        generatorGroup->setBounds( 4, 504, 794, 92 );
         generatorSection.reset( new GeneratorSection( this ) );
         addAndMakeVisible(generatorSection.get());
-        generatorSection->setBounds( 12, 24 , 782, 68 );
+        generatorSection->setBounds( 26, 524 , 782, 68 );
         
         notesSection = std::make_unique<Component>();
         notesViewport = std::make_unique<Viewport>();
         notesViewport->setViewedComponent( notesSection.get(), false );
-        notesViewport->setBounds( 10, 124, 280, 468 );
+        notesViewport->setBounds( 10, 24, 280, 468 );
         notesViewport->setScrollBarsShown( true, false );
         addAndMakeVisible( notesViewport.get() );
 
         analyticsGroup.reset( new juce::GroupComponent( "st", TRANS( "Analytics" ) ) );
         addAndMakeVisible( analyticsGroup.get() );
-        analyticsGroup->setBounds( 302, 104, 494, 492 );
+        analyticsGroup->setBounds( 302, 4, 494, 492 );
 
         analyticsTab.reset( new juce::TabbedComponent(TabbedButtonBar::TabsAtTop) );
         addAndMakeVisible( analyticsTab.get() );
-        analyticsTab->setBounds( 310, 124, 480, 468 );
+        analyticsTab->setBounds( 310, 24, 480, 468 );
         analyticsTab->setTabBarDepth(30);
         radialScaleGraph = new RadialScaleGraph(scale);
         radialScaleGraph->onToneChanged = [this](int idx, double val)
@@ -324,6 +452,8 @@ void ScaleEditor::buildUIFromScale()
                                               };
         
         analyticsTab->addTab( TRANS( "Graph" ), Colours::lightgrey, radialScaleGraph, true );
+        analyticsTab->addTab( TRANS( "Matrix" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
+        analyticsTab->addTab( TRANS( "Intervals" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
     }
 
     radialScaleGraph->scale = scale;
@@ -552,7 +682,7 @@ void ScaleEditor::recalculateScaleText()
 {
     std::ostringstream oss;
     oss << "! Scale generated by tuning editor\n"
-        << "Description FIXME\n"
+        << scale.description << "\n"
         << scale.count << "\n"
         << "! \n";
     for( int i=0; i<scale.count; ++i )
