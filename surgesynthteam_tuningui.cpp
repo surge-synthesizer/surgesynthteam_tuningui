@@ -52,8 +52,119 @@ public:
     float angle;
     std::function<void(float)> onDragDelta = [](float f){};
 };
+    
+class ScaleEditor::RadialScaleGraph : public juce::Component, juce::ComboBox::Listener {
+public:
+    RadialScaleGraph(Tunings::Scale &s) : scale( s ) {
+        comboBox.reset( new juce::ComboBox( "Mode Box" ) );
+        addAndMakeVisible(comboBox.get() );
+        comboBox->setBounds( 2, 2, 30, 25 );
+        comboBox->addItem( "radial", 1 );
+        comboBox->addItem( "angular", 2 );
+        comboBox->addListener( this );
+        notesOn.clear();
+        notesOn.resize(scale.count);
+        for( int i=0; i<scale.count; ++i )
+            notesOn[i] = 0;
+    }
+    
 
-    class NoteLED : public Component,  public juce::AsyncUpdater
+    virtual void paint( juce::Graphics &g ) override;
+    Tunings::Scale scale;
+    std::vector<juce::Rectangle<float>> screenHotSpots;
+    std::unique_ptr<juce::ComboBox> comboBox;
+    int hotSpotIndex = -1, drawMode = 1;
+    std::vector<int> notesOn;
+    double dInterval, centsAtMouseDown, dIntervalAtMouseDown;
+    
+    juce::AffineTransform screenTransform, screenTransformInverted;
+    std::function<void(int index, double)> onToneChanged = [](int, double) { };
+    
+    void noteOn( int sn )
+        {
+            if( sn < notesOn.size() )
+                notesOn[sn] ++;
+            repaint();
+        }
+    void noteOff( int sn )
+        {
+            if( sn < notesOn.size() )
+            {
+                notesOn[sn] --;
+                if( notesOn[sn] < 0 )
+                    notesOn[sn] = 0;
+            }
+            repaint();
+        }
+    virtual void mouseMove( const juce::MouseEvent &e ) override;
+    virtual void mouseDown( const juce::MouseEvent &e ) override;
+    virtual void mouseDrag( const juce::MouseEvent &e ) override;
+    virtual void comboBoxChanged (juce::ComboBox *comboBoxThatHasChanged) override {
+        int tdrawMode = comboBox->getSelectedId();
+        if( tdrawMode != drawMode )
+        {
+            drawMode = tdrawMode;
+            repaint();
+        }
+    }
+};
+
+class ScaleEditor::GeneratorSection : public juce::Component, public juce::Button::Listener {
+public:
+    GeneratorSection(ScaleEditor *ed) : editor( ed ) {
+        evenDivLabel.reset( new Label( "edl", "Even Division of M into N Tones" ) );
+        addAndMakeVisible( evenDivLabel.get() );
+        evenDivLabel->setBounds( 0, 0, 210, 22 );
+        evenDivLabel->setJustificationType( Justification::centred );
+
+        evenDivMLabel.reset( new Label( "edm", "M" ) );
+        addAndMakeVisible( evenDivMLabel.get() );
+        evenDivMLabel->setBounds( 0, 29, 20, 22 );
+
+        evenDivM.reset( new TextEditor( "divm" ) );
+        addAndMakeVisible( evenDivM.get() );
+        evenDivM->setBounds( 24, 29, 56, 22 );
+        evenDivM->setText( "2", dontSendNotification );
+        
+        evenDivNLabel.reset( new Label( "edm", "N" ) );
+        addAndMakeVisible( evenDivNLabel.get() );
+        evenDivNLabel->setBounds( 80, 29, 20, 22 );
+
+        evenDivN.reset( new TextEditor( "divn" ) );
+        addAndMakeVisible( evenDivN.get() );
+        evenDivN->setBounds( 104, 29, 56, 22 );
+        evenDivN->setText( "12", dontSendNotification );
+
+        evenDivApply.reset( new TextButton( "ap" ) );
+        addAndMakeVisible(evenDivApply.get() );
+        evenDivApply->setBounds( 164, 29, 46, 22 );
+        evenDivApply->setButtonText( "Apply" );
+        evenDivApply->addListener( this );
+
+    }
+
+    virtual void buttonClicked (Button* buttonThatWasClicked) override
+    {
+        if (buttonThatWasClicked == evenDivApply.get())
+        {
+            auto s  = Tunings::evenDivisionOfSpanByM( evenDivM->getText().getIntValue(), evenDivN->getText().getIntValue() );
+            for( auto sl : editor->listeners )
+                sl->scaleTextEdited( s.rawText );
+
+            editor->radialScaleGraph->scale = s;
+            editor->radialScaleGraph->repaint();
+
+        }
+    }
+
+    ScaleEditor *editor;
+    std::unique_ptr<Label> evenDivLabel, evenDivMLabel, evenDivNLabel;
+    std::unique_ptr<TextEditor> evenDivM, evenDivN;
+    std::unique_ptr<Button> evenDivApply;
+};
+    
+    
+class NoteLED : public Component,  public juce::AsyncUpdater
 {
 public:
     void setNotes(int n) {
@@ -128,8 +239,17 @@ ScaleEditor::ToneEditor::ToneEditor(bool editable)
         fineKnob.reset( fk );
         fineKnob->setBounds( xpos, 2, 20, 20 );
         xpos += 24;
+
+#if 0
+        // Why does this not add buttons?
+        etButton.reset( new TextButton( "et" ) );
+        addAndMakeVisible( etButton.get() );
+        etButton->setButtonText( "et" );
+        etButton->setBounds( xpos, 0, 40, 24 );
+        xpos += 44;
+#endif
     }
-    setSize( 300, 24 );
+    setSize( xpos, 24 );
 }
 
 void ScaleEditor::ToneEditor::incNotes() {
@@ -166,18 +286,17 @@ void ScaleEditor::buildUIFromScale()
     if( notesSection == nullptr )
     {
         // It's my first time through<
-        countDescGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Count and Description" ) ) );
-        addAndMakeVisible( countDescGroup.get() );
-        countDescGroup->setBounds( 4, 4, 394, 96 );
-
         notesGroup.reset( new juce::GroupComponent( "st", TRANS( "Scale Tones" ) ) );
         addAndMakeVisible( notesGroup.get() );
         notesGroup->setBounds( 4, 104, 294, 492 );
 
         generatorGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Scale Generators" ) ) );
         addAndMakeVisible( generatorGroup.get() );
-        generatorGroup->setBounds( 402, 4, 394, 96 );
-
+        generatorGroup->setBounds( 4, 4, 794, 96 );
+        generatorSection.reset( new GeneratorSection( this ) );
+        addAndMakeVisible(generatorSection.get());
+        generatorSection->setBounds( 12, 24 , 782, 68 );
+        
         notesSection = std::make_unique<Component>();
         notesViewport = std::make_unique<Viewport>();
         notesViewport->setViewedComponent( notesSection.get(), false );
@@ -304,7 +423,7 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         dIntMax = std::max( intervalDistance, dIntMax );
         dIntMin = std::min( intervalDistance, dIntMin );
     }
-    double range = std::max( dIntMax, -dIntMin / 2.0 ); // twice as many inside rings
+    double range = std::max( 0.01, std::max( dIntMax, -dIntMin / 2.0 ) ); // twice as many inside rings
     int iRange = std::ceil( range );
 
     dInterval = outerRadiusExtension / iRange;
@@ -336,7 +455,7 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         double cx = std::cos( frac * 2.0 * MathConstants<double>::pi );
 
         if( notesOn[i] > 0 )
-            g.setColour( Colour( 120, 120, 255 ) );
+            g.setColour( Colour( 255, 255, 255 ) );
         else
             g.setColour( Colour( 110, 110, 120 ) );
         g.drawLine( 0, 0, (1.0 + outerRadiusExtension) * sx, (1.0 + outerRadiusExtension) * cx, 0.01 );
@@ -348,7 +467,7 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         g.addTransform( AffineTransform::scale( -1.0, 1.0 ) );
 
         if( notesOn[i] > 0 )
-            g.setColour( Colour( 120, 120, 255 ) );
+            g.setColour( Colour( 255, 255, 255 ) );
         else
             g.setColour( Colour( 200,200,240 ) );
         Rectangle<float> textPos( 0, -0.1, 0.1, 0.1 );
@@ -376,21 +495,47 @@ void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
         
         auto rx = 1.0 + dInterval * ( c - expectedC * i ) / expectedC;
 
-        if( hotSpotIndex == i - 1 )
-            g.setColour( Colour( 255, 255, 255 ) );
-        else
-            g.setColour( Colour( 255, 128 * rx, 0 ) );
-
         float x0 = rx * sx - 0.05,
             y0 = rx * cx - 0.05,
             dx = 0.1, dy = 0.1;
 
+        if( notesOn[i] > 0 )
+        {
+            g.setColour( Colour( 255, 255, 255 ) );
+            g.drawLine( sx, cx, rx * sx, rx * cx, 0.03 );
+        }
+
+        Colour drawColour( 200, 200, 200 );
+
+        // FIXME - this colormap is bad
+        if( rx < 0.99 )
+        {
+            // use a blue here
+            drawColour = Colour( 200 * ( 1.0 - 0.6 * rx ), 200 * ( 1.0 - 0.6 * rx ), 200 );
+        }
+        else if( rx > 1.01 )
+        {
+            // Use a yellow here
+            drawColour = Colour( 200, 200, 200 * ( rx - 1.0  ) );
+        }
+
+        if( hotSpotIndex == i - 1 )
+            drawColour = drawColour.brighter( 0.6 );
+
+        g.setColour( drawColour );
+
         g.drawLine( sx, cx, rx * sx, rx * cx, 0.01 );
         g.fillEllipse( x0, y0, dx, dy );
+
+        if( hotSpotIndex != i - 1 )
+        {
+            g.setColour( drawColour.brighter( 0.6 ) );
+            g.drawEllipse( x0, y0, dx, dy, 0.01 );
+        }
         
         if( notesOn[i % scale.count] > 0 )
         {
-            g.setColour( Colour( 120, 120, 255 ) );
+            g.setColour( Colour( 255, 255, 255 ) );
             g.drawEllipse( x0, y0, dx, dy, 0.02 );
         }
 
@@ -473,4 +618,16 @@ void ScaleEditor::RadialScaleGraph::mouseDrag( const juce::MouseEvent &e ) {
         onToneChanged( hotSpotIndex, centsAtMouseDown + 100 * dr / dIntervalAtMouseDown );
     }
 }
+
+void ScaleEditor::scaleNoteOn( int scaleNote ) {
+    if( scaleNote < toneEditors.size() )
+        toneEditors[scaleNote]->incNotes();
+    radialScaleGraph->noteOn(scaleNote);
+}
+void ScaleEditor::scaleNoteOff( int scaleNote ) {
+    if( scaleNote < toneEditors.size() )
+        toneEditors[scaleNote]->decNotes();
+    radialScaleGraph->noteOff(scaleNote);
+}
+
 };

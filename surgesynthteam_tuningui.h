@@ -247,6 +247,7 @@ public:
         std::unique_ptr<juce::Label> displayIndex;
         std::unique_ptr<juce::TextEditor> displayValue;
         std::unique_ptr<juce::Component> coarseKnob, fineKnob, playingLED;
+        std::unique_ptr<juce::TextButton> etButton;
         
         float cents;
         int index;
@@ -262,61 +263,8 @@ public:
         std::function<void(int index, juce::String)> onToneChanged = [](int, juce::String) { };
     };
 
-    class RadialScaleGraph : public juce::Component, juce::ComboBox::Listener {
-    public:
-        RadialScaleGraph(Tunings::Scale &s) : scale( s ) {
-            comboBox.reset( new juce::ComboBox( "Mode Box" ) );
-            addAndMakeVisible(comboBox.get() );
-            comboBox->setBounds( 2, 2, 30, 25 );
-            comboBox->addItem( "radial", 1 );
-            comboBox->addItem( "angular", 2 );
-            comboBox->addListener( this );
-            notesOn.clear();
-            notesOn.resize(scale.count);
-            for( int i=0; i<scale.count; ++i )
-                notesOn[i] = 0;
-        }
-
-        // fixme - why is this mess in a header? Use a forward declaration
-        virtual void paint( juce::Graphics &g ) override;
-        Tunings::Scale scale;
-        std::vector<juce::Rectangle<float>> screenHotSpots;
-        std::unique_ptr<juce::ComboBox> comboBox;
-        int hotSpotIndex = -1, drawMode = 1;
-        std::vector<int> notesOn;
-        double dInterval, centsAtMouseDown, dIntervalAtMouseDown;
-
-        juce::AffineTransform screenTransform, screenTransformInverted;
-        std::function<void(int index, double)> onToneChanged = [](int, double) { };
-        
-        void noteOn( int sn )
-            {
-                if( sn < notesOn.size() )
-                    notesOn[sn] ++;
-                repaint();
-            }
-        void noteOff( int sn )
-            {
-                if( sn < notesOn.size() )
-                {
-                    notesOn[sn] --;
-                    if( notesOn[sn] < 0 )
-                        notesOn[sn] = 0;
-                }
-                repaint();
-            }
-        virtual void mouseMove( const juce::MouseEvent &e ) override;
-        virtual void mouseDown( const juce::MouseEvent &e ) override;
-        virtual void mouseDrag( const juce::MouseEvent &e ) override;
-        virtual void comboBoxChanged (juce::ComboBox *comboBoxThatHasChanged) override {
-            int tdrawMode = comboBox->getSelectedId();
-            if( tdrawMode != drawMode )
-            {
-                drawMode = tdrawMode;
-                repaint();
-            }
-        }
-    };
+    class RadialScaleGraph;
+    class GeneratorSection;
     
     ScaleEditor(Tunings::Scale &s);
     ~ScaleEditor() override;
@@ -377,16 +325,8 @@ public:
         g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
     }
 
-    void scaleNoteOn( int scaleNote ) {
-        if( scaleNote < toneEditors.size() )
-            toneEditors[scaleNote]->incNotes();
-        radialScaleGraph->noteOn(scaleNote);
-    }
-    void scaleNoteOff( int scaleNote ) {
-        if( scaleNote < toneEditors.size() )
-            toneEditors[scaleNote]->decNotes();
-        radialScaleGraph->noteOff(scaleNote);
-    }
+    void scaleNoteOn( int scaleNote );
+    void scaleNoteOff( int scaleNote );
         
 private:
     std::set<ScaleTextEditedListener *> listeners;
@@ -398,8 +338,10 @@ private:
 
     std::unique_ptr<juce::TabbedComponent> analyticsTab;
     RadialScaleGraph* radialScaleGraph;
+
+    std::unique_ptr<GeneratorSection> generatorSection;
     
-    std::unique_ptr<juce::GroupComponent> countDescGroup, notesGroup, generatorGroup, analyticsGroup;
+    std::unique_ptr<juce::GroupComponent> notesGroup, generatorGroup, analyticsGroup;
 };
 
 class ScaleEditorWindow : public juce::DocumentWindow {
