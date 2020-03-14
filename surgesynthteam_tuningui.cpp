@@ -752,11 +752,15 @@ void ScaleEditor::RadialScaleGraph::mouseDrag( const juce::MouseEvent &e ) {
 void ScaleEditor::scaleNoteOn( int scaleNote ) {
     if( scaleNote < toneEditors.size() )
         toneEditors[scaleNote]->incNotes();
+    if( scaleNote == 0 )
+        toneEditors.back()->incNotes();
     radialScaleGraph->noteOn(scaleNote);
 }
 void ScaleEditor::scaleNoteOff( int scaleNote ) {
     if( scaleNote < toneEditors.size() )
         toneEditors[scaleNote]->decNotes();
+    if( scaleNote == 0 )
+        toneEditors.back()->decNotes();
     radialScaleGraph->noteOff(scaleNote);
 }
 
