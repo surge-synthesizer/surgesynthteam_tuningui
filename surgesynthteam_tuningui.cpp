@@ -264,14 +264,35 @@ public:
     {
         if (buttonThatWasClicked == evenDivApply.get())
         {
-            auto s  = Tunings::evenDivisionOfSpanByM( evenDivM->getText().getIntValue(), evenDivN->getText().getIntValue() );
-            newScale( s );
+            try
+            {
+                auto s  = Tunings::evenDivisionOfSpanByM( evenDivM->getText().getIntValue(), evenDivN->getText().getIntValue() );
+                newScale( s );
+            }
+            catch( Tunings::TuningError &e )
+            {
+                AlertWindow::showMessageBoxAsync( AlertWindow::AlertIconType::WarningIcon,
+                                                  "Error generating scale",
+                                                  e.what(),
+                                                  "OK" );
+            }
         }
 
         if (buttonThatWasClicked == resetB.get())
         {
-            auto s  = Tunings::evenTemperament12NoteScale();
-            newScale( s );
+            try
+            {
+                auto s  = Tunings::evenTemperament12NoteScale();
+                newScale( s );
+            }
+            catch( Tunings::TuningError &e )
+            {
+                AlertWindow::showMessageBoxAsync( AlertWindow::AlertIconType::WarningIcon,
+                                                  "Error resetting scale",
+                                                  e.what(),
+                                                  "OK" );
+
+            }
         }
     }
 
