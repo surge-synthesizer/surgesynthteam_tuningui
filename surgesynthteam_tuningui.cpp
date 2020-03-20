@@ -175,7 +175,7 @@ public:
         xpos += 10;
 
         {
-            setOctaveLabel.reset( new Label( "so", "Set Octave To" ) );
+            setOctaveLabel.reset( new Label( "so", "Set Period To" ) );
             addAndMakeVisible(setOctaveLabel.get() );
             setOctaveLabel->setBounds( xpos, 0, 100, 22 );
 
@@ -194,11 +194,11 @@ public:
                                                  auto tb = this->editor->scale.tones.back().cents;
                                                  if( f > 0 )
                                                  {
-                                                     tb *= 1.005;
+                                                     tb *= ( 1.0 + 0.005 * f );
                                                  }
                                                  else
                                                  {
-                                                     tb /= 1.005;
+                                                     tb /= ( 1.0 - 0.005 * f );
                                                  }
                                                  this->setOctaveTE->setText( String( tb, 5 ) );
                                              };
