@@ -120,7 +120,7 @@ public:
     }
 };
 
-class ScaleEditor::GeneratorSection : public juce::Component, public juce::Button::Listener {
+class ScaleEditor::GeneratorSection : public juce::Component, public juce::Button::Listener, public juce::TextEditor::Listener {
 public:
     GeneratorSection(ScaleEditor *ed) : editor( ed ) {
 
@@ -178,19 +178,30 @@ public:
             setOctaveLabel.reset( new Label( "so", "Set Octave To" ) );
             addAndMakeVisible(setOctaveLabel.get() );
             setOctaveLabel->setBounds( xpos, 0, 100, 22 );
-            setOctaveLabel->setColour( Label::textColourId, Colour( 190, 190, 200 ) );
 
             setOctaveTE.reset( new TextEditor( "sote" ) );
             addAndMakeVisible( setOctaveTE.get() );
-            setOctaveTE->setText( "soon..." );
+            setOctaveTE->setText( String( editor->scale.tones.back().cents, 5 ), dontSendNotification );
             setOctaveTE->setBounds( xpos, 29, 100, 22 );
-            setOctaveTE->setReadOnly( true );
+            setOctaveTE->addListener( this );
             xpos += 108;
 
             setOctaveKnob.reset( new InfiniteKnob() );
             addAndMakeVisible( setOctaveKnob.get() );
             setOctaveKnob->setBounds( xpos, 0, 29 + 22, 29 + 22 );
-            setOctaveKnob->enabled = false;
+            setOctaveKnob->onDragDelta = [this](float f)
+                                             {
+                                                 auto tb = this->editor->scale.tones.back().cents;
+                                                 if( f > 0 )
+                                                 {
+                                                     tb *= 1.005;
+                                                 }
+                                                 else
+                                                 {
+                                                     tb /= 1.005;
+                                                 }
+                                                 this->setOctaveTE->setText( String( tb, 5 ) );
+                                             };
             xpos += 29 + 22 + 4;
         }
 
@@ -254,25 +265,49 @@ public:
         if (buttonThatWasClicked == evenDivApply.get())
         {
             auto s  = Tunings::evenDivisionOfSpanByM( evenDivM->getText().getIntValue(), evenDivN->getText().getIntValue() );
-            for( auto sl : editor->listeners )
-                sl->scaleTextEdited( s.rawText );
-
-            editor->radialScaleGraph->scale = s;
-            editor->radialScaleGraph->repaint();
-
+            newScale( s );
         }
 
         if (buttonThatWasClicked == resetB.get())
         {
             auto s  = Tunings::evenTemperament12NoteScale();
-            for( auto sl : editor->listeners )
-                sl->scaleTextEdited( s.rawText );
-
-            editor->radialScaleGraph->scale = s;
-            editor->radialScaleGraph->repaint();
+            newScale( s );
         }
     }
 
+    virtual void textEditorTextChanged( TextEditor &e ) override {
+        if( &e == setOctaveTE.get() )
+        {
+            auto f = std::atof( e.getText().toStdString().c_str() );
+            auto ratio = f / editor->scale.tones.back().cents;
+            auto news = editor->scale;
+            int i = 0;
+            auto tones = editor->scale.tones;
+            for( auto &t : tones )
+            {
+                auto c = t.cents * ratio;
+                try {
+                    editor->scale.tones[i] = Tunings::toneFromString( String( c, 5 ).toStdString() );
+                }
+                catch( Tunings::TuningError &e )
+                {
+                    // Oh wells
+                }
+                i++;
+            }
+            editor->recalculateScaleText();
+            newScale( editor->scale );
+        }
+    }
+    
+    void newScale( Tunings::Scale &s ) {
+        for( auto sl : editor->listeners )
+            sl->scaleTextEdited( s.rawText );
+        
+        editor->radialScaleGraph->scale = s;
+        editor->radialScaleGraph->repaint();
+    }
+    
     ScaleEditor *editor;
     std::unique_ptr<Label> evenDivLabel, evenDivMLabel, evenDivNLabel;
     std::unique_ptr<TextEditor> evenDivM, evenDivN;
@@ -451,7 +486,7 @@ void ScaleEditor::buildUIFromScale()
                                                   }
                                               };
         
-        analyticsTab->addTab( TRANS( "Graph" ), Colours::lightgrey, radialScaleGraph, true );
+        analyticsTab->addTab( TRANS( "Graph" ),  getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), radialScaleGraph, true );
         analyticsTab->addTab( TRANS( "Matrix" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
         analyticsTab->addTab( TRANS( "Intervals" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
     }
