@@ -240,14 +240,16 @@ class ScaleEditor : public juce::Component, public juce::FileDragAndDropTarget
 {
 public:
 
-    class ToneEditor : public juce::Component, public juce::TextEditor::Listener {
+    class ToneEditor : public juce::Component, public juce::TextEditor::Listener, public juce::Button::Listener {
     public:
         ToneEditor(bool editable);
 
         std::unique_ptr<juce::Label> displayIndex;
         std::unique_ptr<juce::TextEditor> displayValue;
         std::unique_ptr<juce::Component> coarseKnob, fineKnob, playingLED;
-        std::unique_ptr<juce::TextButton> etButton;
+        std::unique_ptr<juce::TextButton> hideButton;
+
+        ScaleEditor *parent;
         
         float cents;
         int index;
@@ -259,6 +261,9 @@ public:
         virtual void 	textEditorTextChanged (juce::TextEditor &) override {
             onToneChanged(index, displayValue->getText());
         }
+
+        virtual void buttonClicked(juce::Button *b) override;
+        virtual void displayText( bool dt );
         
         std::function<void(int index, juce::String)> onToneChanged = [](int, juce::String) { };
     };
@@ -285,7 +290,9 @@ public:
     }
 
     void buildUIFromScale();
-
+    void toggleToneDisplay();
+    bool displayTones = true;
+    
     virtual bool isInterestedInFileDrag (const juce::StringArray& filenames) override {
         if( filenames.size() == 1 )
         {

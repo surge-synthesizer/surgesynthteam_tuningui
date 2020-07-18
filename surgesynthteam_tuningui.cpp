@@ -284,6 +284,7 @@ public:
             {
                 auto s  = Tunings::evenTemperament12NoteScale();
                 newScale( s );
+                setOctaveTE->setText( "1200.00000" );
             }
             catch( Tunings::TuningError &e )
             {
@@ -423,17 +424,38 @@ ScaleEditor::ToneEditor::ToneEditor(bool editable)
         fineKnob.reset( fk );
         fineKnob->setBounds( xpos, 2, 20, 20 );
         xpos += 24;
-
-#if 0
-        // Why does this not add buttons?
-        etButton.reset( new TextButton( "et" ) );
-        addAndMakeVisible( etButton.get() );
-        etButton->setButtonText( "et" );
-        etButton->setBounds( xpos, 0, 40, 24 );
-        xpos += 44;
-#endif
+    }
+    else
+    {
+        hideButton.reset( new TextButton( "Hide Values" ) );
+        hideButton->setButtonText( "Hide" );
+        hideButton->setBounds( xpos, 0, 45, 22 );
+        hideButton->addListener( this );
+        addAndMakeVisible( hideButton.get() );
     }
     setSize( xpos, 24 );
+}
+
+void ScaleEditor::ToneEditor::buttonClicked( juce::Button *b )
+{
+    parent->toggleToneDisplay();
+}
+
+void ScaleEditor::ToneEditor::displayText( bool dt )
+{
+    if( dt )
+    {
+        displayValue->setPasswordCharacter(0);
+        if( hideButton )
+            hideButton->setButtonText( "Hide" );
+    }
+    else
+    {
+        displayValue->setPasswordCharacter( 0x2022 );
+        if( hideButton )
+            hideButton->setButtonText( "Show" );
+    }
+    
 }
 
 void ScaleEditor::ToneEditor::incNotes() {
@@ -526,6 +548,8 @@ void ScaleEditor::buildUIFromScale()
             auto t = std::make_unique<ToneEditor>( i != 0 );
             notesSection->addAndMakeVisible( t.get() );
             t->setBounds( 10, 28 * i, 200, 24 );
+            t->displayText( displayTones );
+            t->parent = this;
             toneEditors.push_back( std::move( t ) );
         }
     }
@@ -569,6 +593,13 @@ void ScaleEditor::buildUIFromScale()
     notesSection->setSize( 380, 30 * (nEds + 1 ) );
 
     repaint();
+}
+
+void ScaleEditor::toggleToneDisplay()
+{
+    displayTones = !displayTones;
+    for( auto &c : toneEditors )
+        c->displayText( displayTones );
 }
 
 void ScaleEditor::RadialScaleGraph::paint( Graphics &g ) {
