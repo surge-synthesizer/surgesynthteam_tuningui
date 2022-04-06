@@ -370,7 +370,7 @@ public:
                                                     | juce::RectanglePlacement::doNotResize);
 
                 auto result = placement.appliedTo (area, juce::Desktop::getInstance().getDisplays()
-                                                   .getMainDisplay().userArea.reduced (20));
+                                                   .getPrimaryDisplay()->userArea.reduced (20));
                 setBounds (result);
                 editor->setBounds( 0, baroff, editor->getWidth(), editor->getHeight() );
 
