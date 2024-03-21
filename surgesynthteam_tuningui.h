@@ -44,11 +44,18 @@ public:
         table = t;
     }
 
+// Column IDs.
+// According to JUCE API (https://docs.juce.com/master/classTableHeaderComponent.html), 
+// column IDs can be any number but _APART_ _FROM_ 0.
+#define COLUMNID_NOTE 1
+#define COLUMNID_NAME 2
+#define COLUMNID_FREQ 3
+#define COLUMNID_LOG2F 4
     void setupDefaultHeaders( juce::TableListBox *table ) {
-        table->getHeader().addColumn( "Note", 0, 40 );
-        table->getHeader().addColumn( "Name", 1, 40 );
-        table->getHeader().addColumn( "Freq (hz)", 2, 90 );
-        table->getHeader().addColumn( "log2(f/8.17)", 3, 90 );
+        table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40 );
+        table->getHeader().addColumn( "Name", COLUMNID_NAME, 40 );
+        table->getHeader().addColumn( "Freq (hz)", COLUMNID_FREQ, 90 );
+        table->getHeader().addColumn( "log2(f/8.17)", COLUMNID_LOG2F, 90 );
     }
     
     virtual int getNumRows() override { return 128; }
@@ -93,7 +100,7 @@ public:
         }
         
         g.fillAll( kbdColour );
-        if( ! whitekey && columnID != 0 && no )
+        if( ! whitekey && columnID != COLUMNID_NOTE && no )
         {
             g.setColour (table->getLookAndFeel().findColour (juce::ListBox::backgroundColourId));
             // draw an inset top and bottom
@@ -102,7 +109,7 @@ public:
         }
         
         int txtOff = 0;
-        if( columnID == 0 )
+        if( columnID == COLUMNID_NOTE )
         {
             // Black Key
             if( ! whitekey )
@@ -146,23 +153,23 @@ public:
         char txt[256];
         
         switch( columnID ) {
-        case 0:
+        case COLUMNID_NOTE:
         {
             sprintf( txt, "%d", mn );
             break;
         }
-        case 1:
+        case COLUMNID_NAME:
         {
             static std::vector<std::string> nn = { { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" } };
             sprintf( txt, "%s%d", nn[noteInScale].c_str(), (int)(rowNumber / 12 ) - 1 );
             break;
         }
-        case 2:
+        case COLUMNID_FREQ:
         {
             sprintf( txt, "%.3lf", fr );
             break;
         }
-        case 3:
+        case COLUMNID_LOG2F:
         {
             sprintf( txt, "%.6lf", lmn );
             break;
