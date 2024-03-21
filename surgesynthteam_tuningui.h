@@ -54,7 +54,7 @@ public:
     void setupDefaultHeaders( juce::TableListBox *table ) {
         table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40 );
         table->getHeader().addColumn( "Name", COLUMNID_NAME, 40 );
-        table->getHeader().addColumn( "Freq (hz)", COLUMNID_FREQ, 90 );
+        table->getHeader().addColumn( "Freq (Hz)", COLUMNID_FREQ, 90 );
         table->getHeader().addColumn( "log2(f/8.17)", COLUMNID_LOG2F, 90 );
     }
     
