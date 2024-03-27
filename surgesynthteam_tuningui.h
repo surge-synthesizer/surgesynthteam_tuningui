@@ -4,7 +4,7 @@
 
   ID:                 surgesynthteam_tuningui
   vendor:             surgesynthteam
-  version:            1.0.0
+  version:            1.0.1
   name:               Surge Synth Team JUCE UI Componenents for Tuning Synths
   description:        Various UI helpers for making rich tuning UIs
   website:            http://surge-synth-team.org/
@@ -25,7 +25,15 @@
 
 namespace surgesynthteam
 {
-    
+
+// Column IDs.
+// According to JUCE API (https://docs.juce.com/master/classTableHeaderComponent.html), 
+// column IDs can be any unique number but apart from 0.
+constexpr int COLUMNID_NOTE = 1;
+constexpr int COLUMNID_NAME = 2;
+constexpr int COLUMNID_FREQ = 3;
+constexpr int COLUMNID_LOG2F = 4;
+
 class TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
 {
@@ -44,13 +52,7 @@ public:
         table = t;
     }
 
-// Column IDs.
-// According to JUCE API (https://docs.juce.com/master/classTableHeaderComponent.html), 
-// column IDs can be any number but _APART_ _FROM_ 0.
-#define COLUMNID_NOTE 1
-#define COLUMNID_NAME 2
-#define COLUMNID_FREQ 3
-#define COLUMNID_LOG2F 4
+
     void setupDefaultHeaders( juce::TableListBox *table ) {
         table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40 );
         table->getHeader().addColumn( "Name", COLUMNID_NAME, 40 );
