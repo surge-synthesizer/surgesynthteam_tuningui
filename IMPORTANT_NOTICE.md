@@ -10,7 +10,7 @@ used as a column ID causes an assertion in debug mode.
 the JUCE API (https://docs.juce.com/master/classTableHeaderComponent.html), which
 states that "The ID can be any number _apart from 0_, but every column must have a unique ID."
 to avoid the assertion mentioned above. 
-- The "hz" is changed to "Hz" in the column name related.
+- The "hz" is changed to "Hz" in the related column name.
 - Sorting icons and popup menu are disabled in table header because the related functionalities has not been implemented yet.
 - The member ''table'' in constructor ''TuningTableListBoxModel() is initialized to ''nullptr'' to avoid compiler warning ''C26495'' indicated by MSVC.
 
