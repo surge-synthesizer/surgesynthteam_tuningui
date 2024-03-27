@@ -38,7 +38,7 @@ class TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
 {
 public:
-    TuningTableListBoxModel() {
+    TuningTableListBoxModel() : table(nullptr) {
         for( int i=0; i<128; ++i )
             notesOn[i] = false;
         
@@ -54,10 +54,14 @@ public:
 
 
     void setupDefaultHeaders( juce::TableListBox *table ) {
-        table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40 );
-        table->getHeader().addColumn( "Name", COLUMNID_NAME, 40 );
-        table->getHeader().addColumn( "Freq (Hz)", COLUMNID_FREQ, 90 );
-        table->getHeader().addColumn( "log2(f/8.17)", COLUMNID_LOG2F, 90 );
+        // adding columns to table header but disabling the appearance of triangle-shaped black sorting icons
+        table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40, 30, -1, juce::TableHeaderComponent::notSortable);        
+        table->getHeader().addColumn( "Name", COLUMNID_NAME, 40, 30, -1, juce::TableHeaderComponent::notSortable);
+        table->getHeader().addColumn( "Freq (Hz)", COLUMNID_FREQ, 90, 30, -1, juce::TableHeaderComponent::notSortable);
+        table->getHeader().addColumn( "log2(f/8.17)", COLUMNID_LOG2F, 90, 30, -1, juce::TableHeaderComponent::notSortable);
+
+        // disable the default popup menu of the table header
+        table->getHeader().setPopupMenuActive(false);
     }
     
     virtual int getNumRows() override { return 128; }
