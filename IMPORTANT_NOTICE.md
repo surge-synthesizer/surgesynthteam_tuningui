@@ -13,6 +13,10 @@ to avoid the assertion mentioned above.
 - The "hz" is changed to "Hz" in the related column name.
 - Sorting icons and popup menu are disabled in table header because the related functionalities has not been implemented yet.
 - The member ''table'' in constructor ''TuningTableListBoxModel() is initialized to ''nullptr'' to avoid compiler warning ''C26495'' indicated by MSVC.
+- The scientific notation "%12.6e" has been introduced for values exceeding 1E5, both in the table ''Tuning'' and in CSV files.
+- A try-catch structure has been introduced to detect exceptions occurring in method ''exportToCSV'' and a juce::AlertWindow is displayed to inform the User.
+- The label ''Log(Freq/8.17)'' in header line of CSV files has been changed to ''log2(Freq/8.17)'', in accordance with the ''Tuning'' table.
+- the ''TRANS()'' macro, which is intended for backward compatibility, has been replaced by method ''translate()''.
 
 ## WARNING
 

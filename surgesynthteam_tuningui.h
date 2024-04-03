@@ -23,6 +23,8 @@
 #include <sstream>
 #include <set>
 
+#include <exception>
+
 namespace surgesynthteam
 {
 
@@ -172,12 +174,18 @@ public:
         }
         case COLUMNID_FREQ:
         {
-            sprintf( txt, "%.3lf", fr );
+            if (fr < 1.0E+5)
+                sprintf( txt, "%.4lf", fr );
+            else
+                sprintf(txt, "%12.6e", fr);
             break;
         }
         case COLUMNID_LOG2F:
         {
-            sprintf( txt, "%.6lf", lmn );
+            if (lmn < 1.0E+5)
+                sprintf(txt, "%.6lf", lmn);
+            else
+                sprintf(txt, "%12.6e", lmn);
             break;
         }
         }
@@ -195,22 +203,52 @@ public:
             rmbMenu->clear();
             rmbMenu->addItem(1, "Export to CSV" );
             auto result = rmbMenu->show();
-            if( result == 1 )
-                exportToCSV();
+            if (result == 1) {
+                try {
+                    exportToCSV();
+                }
+                catch (Tunings::TuningError &e) {
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+                        "Error exporting CSV file.",
+                        e.what(),
+                        "OK");
+                }
+                catch (...) {
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+                        "Error exporting CSV file.",
+                        "An unknown severe error occurred streaming CSV data to file.",
+                        "OK");
+                }
+            }
+
         }
     }
 
     virtual void exportToCSV() {
         juce::FileChooser fc( "Export CSV to...", juce::File(), "*.csv" );
-        if( fc.browseForFileToSave(true) )
+        if (fc.browseForFileToSave(true))
         {
             auto f = fc.getResult();
             std::ostringstream csvStream;
-            csvStream << "Midi Note, Frequency, Log(Freq/8.17)\n";
-            for( int i=0; i<128; ++i )
-                csvStream << i << ", "
-                          << std::fixed << std::setprecision( 4 ) << tuning.frequencyForMidiNote( i ) << ", "
-                          << std::fixed << std::setprecision(6) << tuning.logScaledFrequencyForMidiNote( i ) << "\n";
+
+            csvStream << "Midi Note, Frequency, log2(Freq/8.17)\n";
+            for (int i = 0; i < 128; ++i) {
+                double fr = tuning.frequencyForMidiNote(i);
+                double lmn = tuning.logScaledFrequencyForMidiNote(i);
+
+                csvStream << i << ", ";
+
+                if (fr > 1.0e+5)
+                    csvStream << std::scientific << std::setprecision(6) << fr << ", ";
+                else
+                    csvStream << std::fixed << std::setprecision(4) << fr << ", ";
+
+                if (lmn > 1.0e+5)
+                    csvStream << std::scientific << std::setprecision(6) << lmn << "\n";
+                else
+                    csvStream << std::fixed << std::setprecision(6) << lmn << "\n";
+
+            }
             if( ! f.replaceWithText( csvStream.str() ) )
             {
                 juce::AlertWindow::showMessageBoxAsync( juce::AlertWindow::AlertIconType::WarningIcon,

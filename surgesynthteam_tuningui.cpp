@@ -492,11 +492,11 @@ void ScaleEditor::buildUIFromScale()
     if( notesSection == nullptr )
     {
         // It's my first time through<
-        notesGroup.reset( new juce::GroupComponent( "st", TRANS( "Scale Tones" ) ) );
+        notesGroup.reset( new juce::GroupComponent( "st", translate( "Scale Tones" ) ) );
         addAndMakeVisible( notesGroup.get() );
         notesGroup->setBounds( 4, 4, 294, 492 );
 
-        generatorGroup.reset( new juce::GroupComponent( "cdg", TRANS( "Scale Generators" ) ) );
+        generatorGroup.reset( new juce::GroupComponent( "cdg", translate( "Scale Generators" ) ) );
         addAndMakeVisible( generatorGroup.get() );
         generatorGroup->setBounds( 4, 504, 794, 92 );
         generatorSection.reset( new GeneratorSection( this ) );
@@ -510,7 +510,7 @@ void ScaleEditor::buildUIFromScale()
         notesViewport->setScrollBarsShown( true, false );
         addAndMakeVisible( notesViewport.get() );
 
-        analyticsGroup.reset( new juce::GroupComponent( "st", TRANS( "Analytics" ) ) );
+        analyticsGroup.reset( new juce::GroupComponent( "st", translate( "Analytics" ) ) );
         addAndMakeVisible( analyticsGroup.get() );
         analyticsGroup->setBounds( 302, 4, 494, 492 );
 
@@ -529,9 +529,9 @@ void ScaleEditor::buildUIFromScale()
                                                   }
                                               };
         
-        analyticsTab->addTab( TRANS( "Graph" ),  getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), radialScaleGraph, true );
-        analyticsTab->addTab( TRANS( "Matrix" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
-        analyticsTab->addTab( TRANS( "Intervals" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
+        analyticsTab->addTab( translate( "Graph" ),  getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), radialScaleGraph, true );
+        analyticsTab->addTab( translate( "Matrix" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
+        analyticsTab->addTab( translate( "Intervals" ), getLookAndFeel().findColour( ResizableWindow::backgroundColourId ), new Label( "cs", "Coming Soon" ), true );
     }
 
     radialScaleGraph->scale = scale;
