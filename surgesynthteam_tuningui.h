@@ -4,7 +4,7 @@
 
   ID:                 surgesynthteam_tuningui
   vendor:             surgesynthteam
-  version:            1.0.0
+  version:            1.0.1
   name:               Surge Synth Team JUCE UI Componenents for Tuning Synths
   description:        Various UI helpers for making rich tuning UIs
   website:            http://surge-synth-team.org/
@@ -23,14 +23,24 @@
 #include <sstream>
 #include <set>
 
+#include <exception>
+
 namespace surgesynthteam
 {
-    
+
+// Column IDs.
+// According to JUCE API (https://docs.juce.com/master/classTableHeaderComponent.html), 
+// column IDs can be any unique number but apart from 0.
+constexpr int COLUMNID_NOTE = 1;
+constexpr int COLUMNID_NAME = 2;
+constexpr int COLUMNID_FREQ = 3;
+constexpr int COLUMNID_LOG2F = 4;
+
 class TuningTableListBoxModel : public juce::TableListBoxModel,
                                                public juce::AsyncUpdater
 {
 public:
-    TuningTableListBoxModel() {
+    TuningTableListBoxModel() : table(nullptr) {
         for( int i=0; i<128; ++i )
             notesOn[i] = false;
         
@@ -44,11 +54,16 @@ public:
         table = t;
     }
 
+
     void setupDefaultHeaders( juce::TableListBox *table ) {
-        table->getHeader().addColumn( "Note", 0, 40 );
-        table->getHeader().addColumn( "Name", 1, 40 );
-        table->getHeader().addColumn( "Freq (hz)", 2, 90 );
-        table->getHeader().addColumn( "log2(f/8.17)", 3, 90 );
+        // adding columns to table header but disabling the appearance of triangle-shaped black sorting icons
+        table->getHeader().addColumn( "Note", COLUMNID_NOTE, 40, 30, -1, juce::TableHeaderComponent::notSortable);        
+        table->getHeader().addColumn( "Name", COLUMNID_NAME, 40, 30, -1, juce::TableHeaderComponent::notSortable);
+        table->getHeader().addColumn( "Freq (Hz)", COLUMNID_FREQ, 90, 30, -1, juce::TableHeaderComponent::notSortable);
+        table->getHeader().addColumn( "log2(f/8.17)", COLUMNID_LOG2F, 90, 30, -1, juce::TableHeaderComponent::notSortable);
+
+        // disable the default popup menu of the table header
+        table->getHeader().setPopupMenuActive(false);
     }
     
     virtual int getNumRows() override { return 128; }
@@ -93,7 +108,7 @@ public:
         }
         
         g.fillAll( kbdColour );
-        if( ! whitekey && columnID != 0 && no )
+        if( ! whitekey && columnID != COLUMNID_NOTE && no )
         {
             g.setColour (table->getLookAndFeel().findColour (juce::ListBox::backgroundColourId));
             // draw an inset top and bottom
@@ -102,7 +117,7 @@ public:
         }
         
         int txtOff = 0;
-        if( columnID == 0 )
+        if( columnID == COLUMNID_NOTE )
         {
             // Black Key
             if( ! whitekey )
@@ -146,25 +161,31 @@ public:
         char txt[256];
         
         switch( columnID ) {
-        case 0:
+        case COLUMNID_NOTE:
         {
             sprintf( txt, "%d", mn );
             break;
         }
-        case 1:
+        case COLUMNID_NAME:
         {
             static std::vector<std::string> nn = { { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" } };
             sprintf( txt, "%s%d", nn[noteInScale].c_str(), (int)(rowNumber / 12 ) - 1 );
             break;
         }
-        case 2:
+        case COLUMNID_FREQ:
         {
-            sprintf( txt, "%.3lf", fr );
+            if (fr < 1.0E+5)
+                sprintf( txt, "%.4lf", fr );
+            else
+                sprintf(txt, "%12.6e", fr);
             break;
         }
-        case 3:
+        case COLUMNID_LOG2F:
         {
-            sprintf( txt, "%.6lf", lmn );
+            if (lmn < 1.0E+5)
+                sprintf(txt, "%.6lf", lmn);
+            else
+                sprintf(txt, "%12.6e", lmn);
             break;
         }
         }
@@ -182,22 +203,52 @@ public:
             rmbMenu->clear();
             rmbMenu->addItem(1, "Export to CSV" );
             auto result = rmbMenu->show();
-            if( result == 1 )
-                exportToCSV();
+            if (result == 1) {
+                try {
+                    exportToCSV();
+                }
+                catch (Tunings::TuningError &e) {
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+                        "Error exporting CSV file.",
+                        e.what(),
+                        "OK");
+                }
+                catch (...) {
+                    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+                        "Error exporting CSV file.",
+                        "An unknown severe error occurred streaming CSV data to file.",
+                        "OK");
+                }
+            }
+
         }
     }
 
     virtual void exportToCSV() {
         juce::FileChooser fc( "Export CSV to...", juce::File(), "*.csv" );
-        if( fc.browseForFileToSave(true) )
+        if (fc.browseForFileToSave(true))
         {
             auto f = fc.getResult();
             std::ostringstream csvStream;
-            csvStream << "Midi Note, Frequency, Log(Freq/8.17)\n";
-            for( int i=0; i<128; ++i )
-                csvStream << i << ", "
-                          << std::fixed << std::setprecision( 4 ) << tuning.frequencyForMidiNote( i ) << ", "
-                          << std::fixed << std::setprecision(6) << tuning.logScaledFrequencyForMidiNote( i ) << "\n";
+
+            csvStream << "Midi Note, Frequency, log2(Freq/8.17)\n";
+            for (int i = 0; i < 128; ++i) {
+                double fr = tuning.frequencyForMidiNote(i);
+                double lmn = tuning.logScaledFrequencyForMidiNote(i);
+
+                csvStream << i << ", ";
+
+                if (fr > 1.0e+5)
+                    csvStream << std::scientific << std::setprecision(6) << fr << ", ";
+                else
+                    csvStream << std::fixed << std::setprecision(4) << fr << ", ";
+
+                if (lmn > 1.0e+5)
+                    csvStream << std::scientific << std::setprecision(6) << lmn << "\n";
+                else
+                    csvStream << std::fixed << std::setprecision(6) << lmn << "\n";
+
+            }
             if( ! f.replaceWithText( csvStream.str() ) )
             {
                 juce::AlertWindow::showMessageBoxAsync( juce::AlertWindow::AlertIconType::WarningIcon,

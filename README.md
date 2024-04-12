@@ -17,4 +17,4 @@ git submodule add http://github.com/surge-synthesizer/surgesynnthteam_tuningui
 the open the projucer and add a module and voila.
 
 I will write documentation here one day I promise. For now just go look how we use
-this in TWSTuningGrid.h in the tuning-workbench-synth
+this in TWSTuningGrid.h in the tuning-workbench-synth. 
